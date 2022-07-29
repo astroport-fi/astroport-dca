@@ -14,7 +14,7 @@ use crate::{
         add_bot_tip, cancel_dca_order, create_dca_order, modify_dca_order, perform_dca_purchase,
         update_config, update_user_config, withdraw,
     },
-    queries::{get_all_dca_orders, get_config, get_user_config, get_user_dca_orders},
+    queries::{get_all_dca_orders, get_config, get_tips, get_user_config, get_user_dca_orders},
     state::{Config, CONFIG, DCA_ID, TIPS},
 };
 
@@ -241,6 +241,7 @@ pub fn execute(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&get_config(deps)?),
+        QueryMsg::Tips {} => to_binary(&get_tips(deps)?),
         QueryMsg::UserConfig { user } => to_binary(&get_user_config(deps, user)?),
         QueryMsg::UserDcaOrders { user } => to_binary(&get_user_dca_orders(deps, env, user)?),
         QueryMsg::AllDcaOrders {

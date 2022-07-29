@@ -91,6 +91,10 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    /// Returns information about the contract configuration in a [`Config`] object.
+    Config {},
+    /// Returns the current tips denom and amount configuration as a [`Vec<Asset>`] object.
+    Tips {},
     /// Returns information about all current active DCA orders in a [`Vec<DcaInfo>`] object.
     AllDcaOrders {
         start_after: Option<u64>,
@@ -99,8 +103,6 @@ pub enum QueryMsg {
     },
     /// Returns information about the users current active DCA orders in a [`Vec<UserDcaInfo>`] object.
     UserDcaOrders { user: String },
-    /// Returns information about the contract configuration in a [`Config`] object.
-    Config {},
     /// Returns the users current configuration as a [`UserConfig`] object.
     UserConfig { user: String },
 }
