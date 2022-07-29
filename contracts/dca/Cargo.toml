@@ -1,7 +1,7 @@
 [package]
 name = "astroport-dca-module"
 version = "2.0.0"
-authors = ["Astroport", "Kaimen Sano"]
+authors = ["Astroport", "Kaimen Sano", "yoisha <48324733+y-pakorn@users.noreply.github.com>"]
 edition = "2021"
 description = "The Astroport DCA module contract implementation"
 license = "MIT"
@@ -37,3 +37,11 @@ thiserror = { version = "1.0.20" }
 
 [dev-dependencies]
 cosmwasm-schema = "1.0.0"
+cw-multi-test = "0.14.0"
+cw20-base = "0.14.0"
+cw1-whitelist = "0.14.0"
+
+astroport-router = { version = "1.0.0", git = "https://github.com/astroport-fi/astroport-core.git" }
+astroport-factory = { version = "1.2.0", git = "https://github.com/astroport-fi/astroport-core.git" }
+astroport-pair = { version = "1.0.0", git = "https://github.com/astroport-fi/astroport-core.git" }
+astroport-pair-stable = { version = "1.0.0", git = "https://github.com/astroport-fi/astroport-core.git" }

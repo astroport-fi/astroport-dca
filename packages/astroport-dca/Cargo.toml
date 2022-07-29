@@ -1,7 +1,7 @@
 [package]
 name = "astroport-dca"
 version = "2.0.0"
-authors = ["Astroport", "Kaimen Sano"]
+authors = ["Astroport", "Kaimen Sano", "yoisha <48324733+y-pakorn@users.noreply.github.com>"]
 edition = "2018"
 repository = "https://github.com/astroport-fi/astroport-dca"
 homepage = "https://astroport.fi"

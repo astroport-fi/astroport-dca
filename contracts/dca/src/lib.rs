@@ -6,3 +6,6 @@ mod handlers;
 mod queries;
 
 mod get_token_allowance;
+
+#[cfg(test)]
+mod tests;
