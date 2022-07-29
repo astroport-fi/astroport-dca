@@ -26,6 +26,9 @@ pub enum ContractError {
     #[error("Token has already been used to DCA")]
     AlreadyDeposited {},
 
+    #[error("DCA amount is not equal to fund sent")]
+    InvalidNativeTokenDeposit {},
+
     #[error("DCA amount is not equal to allowance set by token")]
     InvalidTokenDeposit {},
 
@@ -50,6 +53,9 @@ pub enum ContractError {
     #[error("Hop route does not end up at target_asset")]
     TargetAssetAssertion {},
 
+    #[error("Hop route does not start at initial_asset")]
+    InitialAssetAssertion {},
+
     #[error("Asset balance is less than DCA purchase amount")]
     InsufficientBalance {},
 
@@ -61,4 +67,10 @@ pub enum ContractError {
 
     #[error("Initial asset deposited is not divisible by the DCA amount")]
     IndivisibleDeposit {},
+
+    #[error("Native swap is not allowed")]
+    InvalidNativeSwap {},
+
+    #[error("New initial amount must be greater than old initial amount")]
+    InvalidNewInitialAmount {},
 }

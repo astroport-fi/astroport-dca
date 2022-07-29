@@ -1,8 +1,7 @@
 use astroport::{
-    asset::{addr_validate_to_lower, AssetInfo, UUSD_DENOM},
+    asset::{AssetInfo, UUSD_DENOM},
     router::{ExecuteMsg as RouterExecuteMsg, SwapOperation},
 };
-use astroport_dca::{DcaInfo, UserConfig};
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128,
     WasmMsg,
@@ -11,7 +10,7 @@ use cw20::Cw20ExecuteMsg;
 
 use crate::{
     error::ContractError,
-    state::{CONFIG, USER_CONFIG, USER_DCA},
+    state::{CONFIG, DCA, USER_CONFIG},
 };
 
 /// ## Description
@@ -35,15 +34,15 @@ pub fn perform_dca_purchase(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    user: String,
+    id: u64,
     hops: Vec<SwapOperation>,
 ) -> Result<Response, ContractError> {
     // validate user address
-    let user_address = addr_validate_to_lower(deps.api, &user)?;
+    let mut order = DCA.load(deps.storage, id)?;
 
     // retrieve configs
-    let user_config = USER_CONFIG
-        .may_load(deps.storage, &user_address)?
+    let mut user_config = USER_CONFIG
+        .may_load(deps.storage, &order.owner)?
         .unwrap_or_default();
     let contract_config = CONFIG.load(deps.storage)?;
 
@@ -58,153 +57,106 @@ pub fn perform_dca_purchase(
         return Err(ContractError::MaxHopsAssertion { hops: hops_len });
     }
 
-    // validate that all middle hops (last hop excluded) are whitelisted tokens for the ask_denom or ask_asset
-    let middle_hops = &hops[..hops.len() - 1];
-    for swap in middle_hops {
-        match swap {
-            SwapOperation::NativeSwap { ask_denom, .. } => {
-                if !contract_config
-                    .whitelisted_tokens
-                    .iter()
-                    .any(|token| match token {
-                        AssetInfo::NativeToken { denom } => ask_denom == denom,
-                        AssetInfo::Token { .. } => false,
-                    })
-                {
-                    // not a whitelisted native token
-                    return Err(ContractError::InvalidHopRoute {
-                        token: ask_denom.to_string(),
-                    });
-                }
-            }
-            SwapOperation::AstroSwap { ask_asset_info, .. } => {
-                if !contract_config.is_whitelisted_asset(ask_asset_info) {
-                    return Err(ContractError::InvalidHopRoute {
-                        token: ask_asset_info.to_string(),
-                    });
-                }
-            }
-        }
-    }
-
-    // validate purchaser has enough funds to pay the sender
-    let tip_cost = contract_config
-        .per_hop_fee
-        .checked_mul(Uint128::from(hops_len))?;
-    if tip_cost > user_config.tip_balance {
-        return Err(ContractError::InsufficientTipBalance {});
-    }
-
     // retrieve max_spread from user config, or default to contract set max_spread
     let max_spread = user_config.max_spread.unwrap_or(contract_config.max_spread);
 
     // store messages to send in response
     let mut messages: Vec<CosmosMsg> = Vec::new();
 
-    // load user dca orders and update the relevant one
-    USER_DCA.update(
-        deps.storage,
-        &user_address,
-        |orders| -> Result<Vec<DcaInfo>, ContractError> {
-            let mut orders = orders.ok_or(ContractError::NonexistentDca {})?;
+    // validate all swap operation
+    for (idx, hop) in hops.iter().enumerate() {
+        match hop {
+            SwapOperation::NativeSwap { .. } => Err(ContractError::InvalidNativeSwap {})?,
+            SwapOperation::AstroSwap {
+                offer_asset_info,
+                ask_asset_info,
+            } => {
+                // validate the first offer asset info
+                (idx == 0 && offer_asset_info == &order.initial_asset.info)
+                    .then(|| ())
+                    .ok_or(ContractError::InitialAssetAssertion {})?;
 
-            let order = orders
-                .iter_mut()
-                .find(|order| match &hops[0] {
-                    SwapOperation::NativeSwap { ask_denom, .. } => {
-                        match &order.initial_asset.info {
-                            AssetInfo::NativeToken { denom } => ask_denom == denom,
-                            _ => false,
-                        }
-                    }
-                    SwapOperation::AstroSwap {
-                        offer_asset_info, ..
-                    } => offer_asset_info == &order.initial_asset.info,
-                })
-                .ok_or(ContractError::NonexistentDca {})?;
+                // validate the last ask asset info
+                (idx == (hops.len() - 1) && ask_asset_info == &order.target_asset)
+                    .then(|| ())
+                    .ok_or(ContractError::TargetAssetAssertion {})?;
 
-            // check that it has been long enough between dca purchases
-            if order.last_purchase + order.interval > env.block.time.seconds() {
-                return Err(ContractError::PurchaseTooEarly {});
+                // validate that all middle hops (last hop excluded) are whitelisted tokens for the ask_denom or ask_asset
+                (idx != 0
+                    && idx != (hops.len() - 1)
+                    && contract_config.is_whitelisted_asset(ask_asset_info))
+                .then(|| ())
+                .ok_or(ContractError::InvalidHopRoute {
+                    token: ask_asset_info.to_string(),
+                })?;
             }
+        };
+    }
 
-            // check that last hop is target asset
-            let last_hop = &hops
-                .last()
-                .ok_or(ContractError::EmptyHopRoute {})?
-                .get_target_asset_info();
-            if last_hop != &order.target_asset {
-                return Err(ContractError::TargetAssetAssertion {});
-            }
+    // check that it has been long enough between dca purchases
+    if order.last_purchase + order.interval >= env.block.time.seconds() {
+        return Err(ContractError::PurchaseTooEarly {});
+    }
 
-            // subtract dca_amount from order and update last_purchase time
-            order.initial_asset.amount = order
-                .initial_asset
-                .amount
-                .checked_sub(order.dca_amount)
-                .map_err(|_| ContractError::InsufficientBalance {})?;
-            order.last_purchase = env.block.time.seconds();
+    // subtract dca_amount from order and update last_purchase time
+    order.initial_asset.amount = order
+        .initial_asset
+        .amount
+        .checked_sub(order.dca_amount)
+        .map_err(|_| ContractError::InsufficientBalance {})?;
+    order.last_purchase = env.block.time.seconds();
 
-            // add funds and router message to response
-            if let AssetInfo::Token { contract_addr } = &order.initial_asset.info {
-                // send a TransferFrom request to the token to the router
-                messages.push(
-                    WasmMsg::Execute {
-                        contract_addr: contract_addr.to_string(),
-                        funds: vec![],
-                        msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                            owner: user_address.to_string(),
-                            recipient: contract_config.router_addr.to_string(),
-                            amount: order.dca_amount,
-                        })?,
-                    }
-                    .into(),
-                );
-            }
-
-            // if it is a native token, we need to send the funds
-            let funds = match &order.initial_asset.info {
-                AssetInfo::NativeToken { denom } => vec![Coin {
-                    amount: order.dca_amount,
-                    denom: denom.clone(),
-                }],
-                AssetInfo::Token { .. } => vec![],
-            };
-
-            // tell the router to perform swap operations
+    let funds = match &order.initial_asset.info {
+        // if its a native token, we need to send the funds
+        AssetInfo::NativeToken { denom } => vec![Coin {
+            amount: order.dca_amount,
+            denom: denom.clone(),
+        }],
+        //if its a token, send a TransferFrom request to the token to the router
+        AssetInfo::Token { contract_addr } => {
             messages.push(
                 WasmMsg::Execute {
-                    contract_addr: contract_config.router_addr.to_string(),
-                    funds,
-                    msg: to_binary(&RouterExecuteMsg::ExecuteSwapOperations {
-                        operations: hops,
-                        minimum_receive: None,
-                        to: Some(user_address.to_string()),
-                        max_spread: Some(max_spread),
+                    contract_addr: contract_addr.to_string(),
+                    funds: vec![],
+                    msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                        owner: order.owner.to_string(),
+                        recipient: contract_config.router_addr.to_string(),
+                        amount: order.dca_amount,
                     })?,
                 }
                 .into(),
             );
 
-            Ok(orders)
-        },
-    )?;
+            vec![]
+        }
+    };
 
-    // remove tip from purchaser
-    USER_CONFIG.update(
-        deps.storage,
-        &user_address,
-        |user_config| -> Result<UserConfig, ContractError> {
-            let mut user_config = user_config.unwrap_or_default();
+    // tell the router to perform swap operations
+    messages.push(
+        WasmMsg::Execute {
+            contract_addr: contract_config.router_addr.to_string(),
+            funds,
+            msg: to_binary(&RouterExecuteMsg::ExecuteSwapOperations {
+                operations: hops,
+                minimum_receive: None,
+                to: Some(order.owner.to_string()),
+                max_spread: Some(max_spread),
+            })?,
+        }
+        .into(),
+    );
 
-            user_config.tip_balance = user_config
-                .tip_balance
-                .checked_sub(tip_cost)
-                .map_err(|_| ContractError::InsufficientTipBalance {})?;
+    // validate purchaser has enough funds to pay the sender
+    let tip_cost = contract_config
+        .per_hop_fee
+        .checked_mul(Uint128::from(hops_len))?;
+    if tip_cost >= user_config.tip_balance {
+        return Err(ContractError::InsufficientTipBalance {});
+    }
 
-            Ok(user_config)
-        },
-    )?;
+    // update user tip balance
+    user_config.tip_balance -= tip_cost;
+    USER_CONFIG.save(deps.storage, &order.owner, &user_config)?;
 
     // add tip payment to messages
     messages.push(
@@ -220,6 +172,7 @@ pub fn perform_dca_purchase(
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "perform_dca_purchase"),
+        attr("id", id.to_string()),
         attr("tip_cost", tip_cost),
     ]))
 }

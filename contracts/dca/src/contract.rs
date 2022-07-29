@@ -3,9 +3,9 @@ use std::str::FromStr;
 use crate::error::ContractError;
 use crate::handlers::{
     add_bot_tip, cancel_dca_order, create_dca_order, modify_dca_order, perform_dca_purchase,
-    update_config, update_user_config, withdraw, ModifyDcaOrderParameters,
+    update_config, update_user_config, withdraw,
 };
-use crate::queries::{get_config, get_user_config, get_user_dca_orders};
+use crate::queries::{get_all_dca_orders, get_config, get_user_config, get_user_dca_orders};
 use crate::state::{Config, CONFIG};
 
 use astroport::asset::addr_validate_to_lower;
@@ -156,6 +156,7 @@ pub fn execute(
             target_asset,
             interval,
             dca_amount,
+            start_at,
         } => create_dca_order(
             deps,
             env,
@@ -164,33 +165,20 @@ pub fn execute(
             target_asset,
             interval,
             dca_amount,
+            start_at,
         ),
         ExecuteMsg::AddBotTip {} => add_bot_tip(deps, info),
         ExecuteMsg::Withdraw { tip: amount } => withdraw(deps, info, amount),
-        ExecuteMsg::PerformDcaPurchase { user, hops } => {
-            perform_dca_purchase(deps, env, info, user, hops)
+        ExecuteMsg::PerformDcaPurchase { id, hops } => {
+            perform_dca_purchase(deps, env, info, id, hops)
         }
-        ExecuteMsg::CancelDcaOrder { initial_asset } => cancel_dca_order(deps, info, initial_asset),
+        ExecuteMsg::CancelDcaOrder { id } => cancel_dca_order(deps, info, id),
         ExecuteMsg::ModifyDcaOrder {
-            old_initial_asset,
-            new_initial_asset,
-            new_target_asset,
-            new_interval,
-            new_dca_amount,
-            should_reset_purchase_time,
-        } => modify_dca_order(
-            deps,
-            env,
-            info,
-            ModifyDcaOrderParameters {
-                old_initial_asset,
-                new_initial_asset,
-                new_target_asset,
-                new_interval,
-                new_dca_amount,
-                should_reset_purchase_time,
-            },
-        ),
+            id,
+            interval,
+            dca_amount,
+            initial_amount,
+        } => modify_dca_order(deps, env, info, id, initial_amount, interval, dca_amount),
     }
 }
 
@@ -218,5 +206,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_binary(&get_config(deps)?),
         QueryMsg::UserConfig { user } => to_binary(&get_user_config(deps, user)?),
         QueryMsg::UserDcaOrders { user } => to_binary(&get_user_dca_orders(deps, env, user)?),
+        QueryMsg::AllDcaOrders {
+            start_after,
+            limit,
+            is_ascending,
+        } => to_binary(&get_all_dca_orders(deps, start_after, limit, is_ascending)?),
     }
 }

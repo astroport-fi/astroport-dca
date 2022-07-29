@@ -1,5 +1,5 @@
 use astroport::asset::AssetInfo;
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Decimal, Empty, Uint128};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -35,3 +35,7 @@ pub const CONFIG: Item<Config> = Item::new("config");
 pub const USER_CONFIG: Map<&Addr, UserConfig> = Map::new("user_config");
 /// The DCA orders for a user
 pub const USER_DCA: Map<&Addr, Vec<DcaInfo>> = Map::new("user_dca");
+
+pub const DCA_ID: Item<u64> = Item::new("dca_id");
+pub const DCA: Map<u64, DcaInfo> = Map::new("dca");
+pub const DCA_OWNER: Map<(&Addr, u64), Empty> = Map::new("dca_o");

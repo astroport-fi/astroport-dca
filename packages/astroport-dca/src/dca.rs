@@ -2,11 +2,15 @@ use astroport::asset::{Asset, AssetInfo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Addr, Uint128};
 
 /// Describes information about a DCA order
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DcaInfo {
+    /// Unique id of this DCA purchases
+    pub id: u64,
+    /// Owner of this DCA purchases
+    pub owner: Addr,
     /// The starting asset deposited by the user, with the amount representing the users deposited
     /// amount of the token
     pub initial_asset: Asset,

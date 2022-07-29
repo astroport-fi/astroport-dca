@@ -33,7 +33,7 @@ pub enum ExecuteMsg {
     /// Add uusd top-up for bots to perform DCA requests
     AddBotTip {},
     /// Cancels a DCA order, returning any native asset back to the user
-    CancelDcaOrder { initial_asset: AssetInfo },
+    CancelDcaOrder { id: u64 },
     /// Creates a new DCA order where `dca_amount` of token `initial_asset` will purchase
     /// `target_asset` every `interval`
     ///
@@ -44,21 +44,17 @@ pub enum ExecuteMsg {
         target_asset: AssetInfo,
         interval: u64,
         dca_amount: Uint128,
+        start_at: Option<u64>,
     },
     /// Modifies an existing DCA order, allowing the user to change certain parameters
     ModifyDcaOrder {
-        old_initial_asset: AssetInfo,
-        new_initial_asset: Asset,
-        new_target_asset: AssetInfo,
-        new_interval: u64,
-        new_dca_amount: Uint128,
-        should_reset_purchase_time: bool,
+        id: u64,
+        initial_amount: Option<Uint128>,
+        interval: Option<u64>,
+        dca_amount: Option<Uint128>,
     },
     /// Performs a DCA purchase for a specified user given a hop route
-    PerformDcaPurchase {
-        user: String,
-        hops: Vec<SwapOperation>,
-    },
+    PerformDcaPurchase { id: u64, hops: Vec<SwapOperation> },
     /// Updates the configuration of the contract
     UpdateConfig {
         /// The new maximum amount of hops to perform from `initial_asset` to `target_asset` when
@@ -86,7 +82,13 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Returns information about the users current active DCA orders in a [`Vec<DcaInfo>`] object.
+    /// Returns information about all current active DCA orders in a [`Vec<DcaInfo>`] object.
+    AllDcaOrders {
+        start_after: Option<u64>,
+        limit: Option<u64>,
+        is_ascending: Option<bool>,
+    },
+    /// Returns information about the users current active DCA orders in a [`Vec<UserDcaInfo>`] object.
     UserDcaOrders { user: String },
     /// Returns information about the contract configuration in a [`Config`] object.
     Config {},
@@ -107,7 +109,7 @@ pub struct MigrateMsg {}
 /// This is useful for bots and front-end to distinguish between a users token allowance (which may
 /// have changed) for the DCA contract, and the created DCA order size.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct DcaQueryInfo {
+pub struct UserDcaInfo {
     pub token_allowance: Uint128,
     pub info: DcaInfo,
 }

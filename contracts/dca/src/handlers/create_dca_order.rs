@@ -1,8 +1,12 @@
 use astroport::asset::{Asset, AssetInfo};
 use astroport_dca::DcaInfo;
-use cosmwasm_std::{attr, DepsMut, Env, MessageInfo, Response, StdError, Uint128};
+use cosmwasm_std::{attr, DepsMut, Empty, Env, MessageInfo, Response, StdError, Uint128};
 
-use crate::{error::ContractError, get_token_allowance::get_token_allowance, state::USER_DCA};
+use crate::{
+    error::ContractError,
+    get_token_allowance::get_token_allowance,
+    state::{DCA, DCA_ID, DCA_OWNER},
+};
 
 /// ## Description
 /// Creates a new DCA order for a user where the `target_asset` will be purchased with `dca_amount`
@@ -28,6 +32,7 @@ use crate::{error::ContractError, get_token_allowance::get_token_allowance, stat
 ///
 /// * `dca_amount` - A [`Uint128`] representing the amount of `initial_asset` to spend each DCA
 /// purchase.
+#[allow(clippy::too_many_arguments)]
 pub fn create_dca_order(
     deps: DepsMut,
     env: Env,
@@ -36,18 +41,12 @@ pub fn create_dca_order(
     target_asset: AssetInfo,
     interval: u64,
     dca_amount: Uint128,
+    start_at: Option<u64>,
 ) -> Result<Response, ContractError> {
-    // check that user has not previously created dca strategy with this initial_asset
-    let mut orders = USER_DCA
-        .may_load(deps.storage, &info.sender)?
-        .unwrap_or_default();
+    let id = DCA_ID.load(deps.storage)?;
 
-    if orders
-        .iter()
-        .any(|order| order.initial_asset.info == initial_asset.info)
-    {
-        return Err(ContractError::AlreadyDeposited {});
-    }
+    initial_asset.info.check(deps.api)?;
+    target_asset.check(deps.api)?;
 
     // check that assets are not duplicate
     if initial_asset.info == target_asset {
@@ -76,28 +75,37 @@ pub fn create_dca_order(
         AssetInfo::NativeToken { .. } => initial_asset.assert_sent_native_token_balance(&info)?,
         AssetInfo::Token { contract_addr } => {
             let allowance = get_token_allowance(&deps.as_ref(), &env, &info.sender, contract_addr)?;
-            if allowance != initial_asset.amount {
+            if allowance < initial_asset.amount {
                 return Err(ContractError::InvalidTokenDeposit {});
             }
         }
     }
 
-    // store dca order
-    orders.push(DcaInfo {
-        initial_asset: initial_asset.clone(),
-        target_asset: target_asset.clone(),
+    let now = env.block.time.seconds();
+    let dca_info = DcaInfo {
+        id,
+        owner: info.sender,
+        initial_asset,
+        target_asset,
         interval,
-        last_purchase: 0,
+        last_purchase: match start_at {
+            Some(start_at) if start_at > now => start_at,
+            _ => now,
+        } - interval,
         dca_amount,
-    });
+    };
 
-    USER_DCA.save(deps.storage, &info.sender, &orders)?;
+    DCA_ID.save(deps.storage, &(id + 1))?;
+    DCA.save(deps.storage, id, &dca_info)?;
+    DCA_OWNER.save(deps.storage, (&dca_info.owner, id), &Empty {})?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "create_dca_order"),
-        attr("initial_asset", initial_asset.to_string()),
-        attr("target_asset", target_asset.to_string()),
+        attr("id", id.to_string()),
+        attr("initial_asset", dca_info.initial_asset.to_string()),
+        attr("target_asset", dca_info.target_asset.to_string()),
         attr("interval", interval.to_string()),
         attr("dca_amount", dca_amount),
+        attr("start_at", dca_info.last_purchase.to_string()),
     ]))
 }
