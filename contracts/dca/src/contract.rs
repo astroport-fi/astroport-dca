@@ -1,21 +1,22 @@
 use std::str::FromStr;
 
-use crate::error::ContractError;
-use crate::handlers::{
-    add_bot_tip, cancel_dca_order, create_dca_order, modify_dca_order, perform_dca_purchase,
-    update_config, update_user_config, withdraw,
-};
-use crate::queries::{get_all_dca_orders, get_config, get_user_config, get_user_dca_orders};
-use crate::state::{Config, CONFIG, DCA_ID, TIPS};
-
 use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
+use astroport_dca::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
     Response, StdResult, Uint128,
 };
-
-use astroport_dca::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cw2::set_contract_version;
+
+use crate::{
+    error::ContractError,
+    handlers::{
+        add_bot_tip, cancel_dca_order, create_dca_order, modify_dca_order, perform_dca_purchase,
+        update_config, update_user_config, withdraw,
+    },
+    queries::{get_all_dca_orders, get_config, get_user_config, get_user_dca_orders},
+    state::{Config, CONFIG, DCA_ID, TIPS},
+};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-dca";
@@ -87,7 +88,9 @@ pub fn instantiate(
 ///
 /// * `_msg` - The [`MigrateMsg`] to migrate the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     Ok(Response::default())
 }
 
