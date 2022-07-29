@@ -89,9 +89,11 @@ pub fn create_dca_order(
         target_asset,
         interval,
         last_purchase: match start_at {
-            Some(start_at) if start_at > now => start_at,
+            // if start_at is in future -> calculate last_purchase to match start_at time
+            Some(start_at) if start_at > now => start_at - interval,
+            // else will default to start from now + interval
             _ => now,
-        } - interval,
+        },
         dca_amount,
     };
 

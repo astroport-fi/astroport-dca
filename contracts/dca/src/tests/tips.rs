@@ -161,7 +161,7 @@ fn withdraw_tips_insuff_bal() -> Result<(), Box<dyn Error>> {
     let err = app
         .execute_contract(
             Addr::unchecked(USER_ONE),
-            dca.clone(),
+            dca,
             &ExecuteMsg::WithdrawTips {
                 tips: vec![native_asset(USDT, 2_000)],
             },

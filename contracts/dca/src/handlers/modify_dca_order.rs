@@ -65,6 +65,18 @@ pub fn modify_dca_order(
         }
 
         order.initial_asset.amount = initial_amount;
+
+        // check that initial_asset.amount is divisible by dca_amount
+        if !order
+            .initial_asset
+            .amount
+            .checked_rem(order.dca_amount)
+            .map_err(StdError::divide_by_zero)?
+            .is_zero()
+        {
+            return Err(ContractError::IndivisibleDeposit {});
+        }
+
         attrs.push(attr("new_initial_asset_amount", initial_amount));
     }
 

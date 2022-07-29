@@ -7,7 +7,7 @@ use astroport::{
     factory::{PairConfig, PairType},
 };
 use astroport_dca::QueryMsg;
-use cosmwasm_std::{to_binary, Addr, Coin, Decimal, Uint128};
+use cosmwasm_std::{to_binary, Addr, BlockInfo, Coin, Decimal, Timestamp, Uint128};
 use cw20::Cw20Coin;
 use cw_multi_test::{App, AppBuilder, ContractWrapper, Executor};
 
@@ -74,9 +74,9 @@ pub fn instantiate() -> (App, Addr) {
                 storage,
                 &Addr::unchecked(ADMIN),
                 vec![
-                    Coin::new(1_500_000_001, LUNA),
+                    Coin::new(3_200_000_001, LUNA),
                     Coin::new(3_000_000_001, USDC),
-                    Coin::new(2_000_000_001, USDT),
+                    Coin::new(3_000_000_001, USDT),
                     Coin::new(1_000_000_001, OSMO),
                 ],
             )
@@ -94,6 +94,12 @@ pub fn instantiate() -> (App, Addr) {
                 ],
             )
             .unwrap();
+    });
+
+    app.set_block(BlockInfo {
+        height: 1,
+        time: Timestamp::from_seconds(1),
+        chain_id: "test-1".to_string(),
     });
 
     let cw20_code = app.store_code(Box::new(ContractWrapper::new(
@@ -219,6 +225,41 @@ pub fn instantiate() -> (App, Addr) {
             receiver: None,
         },
         &[Coin::new(500_000_000, LUNA), Coin::new(1_000_000_000, USDC)],
+    )
+    .unwrap();
+
+    let luna_usdt_pair_addr = app
+        .execute_contract(
+            Addr::unchecked(ADMIN),
+            factory.clone(),
+            &astroport::factory::ExecuteMsg::CreatePair {
+                pair_type: PairType::Xyk {},
+                asset_infos: [native_info(LUNA), native_info(USDT)],
+                init_params: None,
+            },
+            &[],
+        )
+        .unwrap()
+        .events
+        .into_iter()
+        .flat_map(|e| e.attributes)
+        .find(|e| e.key == "pair_contract_addr")
+        .unwrap()
+        .value;
+
+    app.execute_contract(
+        Addr::unchecked(ADMIN),
+        Addr::unchecked(&luna_usdt_pair_addr),
+        &astroport::pair::ExecuteMsg::ProvideLiquidity {
+            assets: [
+                native_asset(LUNA, 700_000_000),
+                native_asset(USDT, 1_000_000_000),
+            ],
+            slippage_tolerance: None,
+            auto_stake: None,
+            receiver: None,
+        },
+        &[Coin::new(700_000_000, LUNA), Coin::new(1_000_000_000, USDT)],
     )
     .unwrap();
 
