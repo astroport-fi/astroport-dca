@@ -73,4 +73,13 @@ pub enum ContractError {
 
     #[error("New initial amount must be greater than old initial amount")]
     InvalidNewInitialAmount {},
+
+    #[error("Tip amount must be greater than zero")]
+    InvalidTipAmount {},
+
+    #[error("Tip asset info must be whitelisted")]
+    InvalidTipAssetInfo {},
+
+    #[error("Tip balance is insufficient to withdraw")]
+    InsufficientTipWithdrawBalance {},
 }

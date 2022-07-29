@@ -57,6 +57,7 @@ pub fn update_user_config(
 mod tests {
     use std::str::FromStr;
 
+    use astroport::asset::{Asset, AssetInfo};
     use astroport_dca::{ExecuteMsg, UserConfig};
     use cosmwasm_std::{
         attr, coin,
@@ -64,7 +65,10 @@ mod tests {
         Decimal, Response, Uint128,
     };
 
-    use crate::{contract::execute, state::USER_CONFIG};
+    use crate::{
+        contract::execute,
+        state::{TIPS, USER_CONFIG},
+    };
 
     #[test]
     fn does_update_user_config() {
@@ -94,7 +98,7 @@ mod tests {
             UserConfig {
                 max_hops: Some(6),
                 max_spread: Some(Decimal::from_str("0.025").unwrap()),
-                tip_balance: Uint128::zero()
+                tips_balance: vec![],
             }
         )
     }
@@ -102,6 +106,17 @@ mod tests {
     #[test]
     fn does_not_change_tip_balance() {
         let mut deps = mock_dependencies();
+
+        TIPS.save(
+            &mut deps.storage,
+            &vec![Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: Uint128::new(100),
+            }],
+        )
+        .unwrap();
 
         let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::UpdateUserConfig {
@@ -118,7 +133,15 @@ mod tests {
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         let config = USER_CONFIG.load(&deps.storage, &send_info.sender).unwrap();
-        assert_eq!(config.tip_balance, send_info.funds[0].amount);
+        assert_eq!(
+            config.tips_balance,
+            vec![Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: Uint128::new(10_000),
+            }]
+        );
     }
 
     #[test]
@@ -146,7 +169,7 @@ mod tests {
             UserConfig {
                 max_hops: Some(6),
                 max_spread: None,
-                tip_balance: Uint128::zero()
+                tips_balance: vec![],
             }
         )
     }

@@ -6,14 +6,15 @@ use crate::handlers::{
     update_config, update_user_config, withdraw,
 };
 use crate::queries::{get_all_dca_orders, get_config, get_user_config, get_user_dca_orders};
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, CONFIG, DCA_ID, TIPS};
 
-use astroport::asset::addr_validate_to_lower;
+use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    entry_point, from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdResult, Uint128,
 };
 
-use astroport_dca::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use astroport_dca::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cw2::set_contract_version;
 
 /// Contract name that is used for migration.
@@ -51,9 +52,19 @@ pub fn instantiate(
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    for whitelisted_token in &msg.whitelisted_tokens {
+        whitelisted_token.check(deps.api)?;
+    }
+
+    for tip in &msg.tips {
+        (tip.amount > Uint128::zero())
+            .then(|| ())
+            .ok_or(ContractError::InvalidTipAmount {})?;
+        tip.info.check(deps.api)?;
+    }
+
     let config = Config {
         max_hops: msg.max_hops,
-        per_hop_fee: msg.per_hop_fee,
         whitelisted_tokens: msg.whitelisted_tokens,
         max_spread,
         factory_addr,
@@ -61,6 +72,8 @@ pub fn instantiate(
     };
 
     CONFIG.save(deps.storage, &config)?;
+    DCA_ID.save(deps.storage, &0)?;
+    TIPS.save(deps.storage, &msg.tips)?;
 
     Ok(Response::new())
 }
@@ -134,19 +147,30 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::Receive(receive_msg) => {
+            let sender = deps.api.addr_validate(&receive_msg.sender)?;
+            match from_binary(&receive_msg.msg)? {
+                Cw20HookMsg::AddBotTip {} => add_bot_tip(
+                    deps,
+                    MessageInfo {
+                        sender,
+                        funds: vec![],
+                    },
+                    vec![Asset {
+                        info: AssetInfo::Token {
+                            contract_addr: info.sender,
+                        },
+                        amount: receive_msg.amount,
+                    }],
+                ),
+            }
+        }
         ExecuteMsg::UpdateConfig {
             max_hops,
-            per_hop_fee,
             whitelisted_tokens,
             max_spread,
-        } => update_config(
-            deps,
-            info,
-            max_hops,
-            per_hop_fee,
-            whitelisted_tokens,
-            max_spread,
-        ),
+            tips,
+        } => update_config(deps, info, max_hops, whitelisted_tokens, max_spread, tips),
         ExecuteMsg::UpdateUserConfig {
             max_hops,
             max_spread,
@@ -167,8 +191,18 @@ pub fn execute(
             dca_amount,
             start_at,
         ),
-        ExecuteMsg::AddBotTip {} => add_bot_tip(deps, info),
-        ExecuteMsg::Withdraw { tip: amount } => withdraw(deps, info, amount),
+        ExecuteMsg::AddBotTip {} => add_bot_tip(
+            deps,
+            info.clone(),
+            info.funds
+                .into_iter()
+                .map(|e| Asset {
+                    info: AssetInfo::NativeToken { denom: e.denom },
+                    amount: e.amount,
+                })
+                .collect::<Vec<_>>(),
+        ),
+        ExecuteMsg::Withdraw { tips } => withdraw(deps, info, tips),
         ExecuteMsg::PerformDcaPurchase { id, hops } => {
             perform_dca_purchase(deps, env, info, id, hops)
         }

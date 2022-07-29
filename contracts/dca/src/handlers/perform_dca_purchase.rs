@@ -1,5 +1,5 @@
 use astroport::{
-    asset::{AssetInfo, UUSD_DENOM},
+    asset::AssetInfo,
     router::{ExecuteMsg as RouterExecuteMsg, SwapOperation},
 };
 use cosmwasm_std::{
@@ -10,7 +10,7 @@ use cw20::Cw20ExecuteMsg;
 
 use crate::{
     error::ContractError,
-    state::{CONFIG, DCA, USER_CONFIG},
+    state::{CONFIG, DCA, TIPS, USER_CONFIG},
 };
 
 /// ## Description
@@ -147,32 +147,54 @@ pub fn perform_dca_purchase(
     );
 
     // validate purchaser has enough funds to pay the sender
-    let tip_cost = contract_config
-        .per_hop_fee
-        .checked_mul(Uint128::from(hops_len))?;
-    if tip_cost >= user_config.tip_balance {
-        return Err(ContractError::InsufficientTipBalance {});
+    let tip_costs = TIPS.load(deps.storage)?;
+    let mut is_paid = false;
+    for (idx, balance) in user_config.tips_balance.iter_mut().enumerate() {
+        let this_cost = tip_costs.iter().find(|e| e.info == balance.info);
+        if let Some(cost) = this_cost {
+            if let Ok(new_balance) = balance.amount.checked_sub(cost.amount) {
+                match new_balance == Uint128::zero() {
+                    true => {
+                        user_config.tips_balance.remove(idx);
+                    }
+                    false => {
+                        balance.amount = new_balance;
+                    }
+                }
+                is_paid = true;
+
+                messages.push(match &cost.info {
+                    AssetInfo::Token { contract_addr } => CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr: contract_addr.to_string(),
+                        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                            recipient: info.sender.to_string(),
+                            amount: cost.amount,
+                        })?,
+                        funds: vec![],
+                    }),
+                    AssetInfo::NativeToken { denom } => CosmosMsg::Bank(BankMsg::Send {
+                        to_address: info.sender.to_string(),
+                        amount: vec![Coin {
+                            denom: denom.clone(),
+                            amount: cost.amount,
+                        }],
+                    }),
+                });
+
+                break;
+            }
+        }
     }
 
-    // update user tip balance
-    user_config.tip_balance -= tip_cost;
-    USER_CONFIG.save(deps.storage, &order.owner, &user_config)?;
+    is_paid
+        .then(|| ())
+        .ok_or(ContractError::InsufficientTipBalance {})?;
 
-    // add tip payment to messages
-    messages.push(
-        BankMsg::Send {
-            to_address: info.sender.to_string(),
-            amount: vec![Coin {
-                amount: tip_cost,
-                denom: UUSD_DENOM.to_string(),
-            }],
-        }
-        .into(),
-    );
+    // update user tip balance
+    USER_CONFIG.save(deps.storage, &order.owner, &user_config)?;
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "perform_dca_purchase"),
         attr("id", id.to_string()),
-        attr("tip_cost", tip_cost),
     ]))
 }

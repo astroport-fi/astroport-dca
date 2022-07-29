@@ -3,6 +3,7 @@ use astroport::{
     router::SwapOperation,
 };
 use cosmwasm_std::{Decimal, Uint128};
+use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -14,8 +15,6 @@ pub struct InstantiateMsg {
     /// The maximum amount of hops to perform from `initial_asset` to `target_asset` when DCAing if
     /// the user does not specify a custom max hop amount
     pub max_hops: u32,
-    /// The fee a user must pay per hop performed in a DCA purchase
-    pub per_hop_fee: Uint128,
     /// The whitelisted tokens that can be used in a DCA hop route
     pub whitelisted_tokens: Vec<AssetInfo>,
     /// The maximum amount of spread
@@ -24,16 +23,21 @@ pub struct InstantiateMsg {
     pub factory_addr: String,
     /// The address of the Astroport router contract
     pub router_addr: String,
+    /// The allowed tips denom and amount
+    pub tips: Vec<Asset>,
 }
 
 /// This structure describes the execute messages available in the contract
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// Add uusd top-up for bots to perform DCA requests
+    Receive(Cw20ReceiveMsg),
+    /// Add top-up for bots to perform DCA requests
     AddBotTip {},
     /// Cancels a DCA order, returning any native asset back to the user
-    CancelDcaOrder { id: u64 },
+    CancelDcaOrder {
+        id: u64,
+    },
     /// Creates a new DCA order where `dca_amount` of token `initial_asset` will purchase
     /// `target_asset` every `interval`
     ///
@@ -54,18 +58,21 @@ pub enum ExecuteMsg {
         dca_amount: Option<Uint128>,
     },
     /// Performs a DCA purchase for a specified user given a hop route
-    PerformDcaPurchase { id: u64, hops: Vec<SwapOperation> },
+    PerformDcaPurchase {
+        id: u64,
+        hops: Vec<SwapOperation>,
+    },
     /// Updates the configuration of the contract
     UpdateConfig {
         /// The new maximum amount of hops to perform from `initial_asset` to `target_asset` when
         /// performing DCA purchases if the user does not specify a custom max hop amount
         max_hops: Option<u32>,
-        /// The new fee a user must pay per hop performed in a DCA purchase
-        per_hop_fee: Option<Uint128>,
         /// The new whitelisted tokens that can be used in a DCA hop route
         whitelisted_tokens: Option<Vec<AssetInfo>>,
         /// The new maximum spread for DCA purchases
         max_spread: Option<Decimal>,
+        /// The new tips denom and amount
+        tips: Option<Vec<Asset>>,
     },
     /// Update the configuration for a user
     UpdateUserConfig {
@@ -75,7 +82,9 @@ pub enum ExecuteMsg {
         max_spread: Option<Decimal>,
     },
     /// Withdraws a users bot tip from the contract.
-    Withdraw { tip: Uint128 },
+    Withdraw {
+        tips: Vec<Asset>,
+    },
 }
 
 /// This structure describes the query messages available in the contract
@@ -100,6 +109,13 @@ pub enum QueryMsg {
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Cw20HookMsg {
+    /// Add top-up for bots to perform DCA requests
+    AddBotTip {},
+}
 
 /// Describes information for a UserDcaOrders query
 ///
