@@ -1,14 +1,17 @@
 #![allow(dead_code)]
 
-use std::error::Error;
+use std::{error::Error, str::FromStr};
 
 use astroport::{
     asset::{Asset, AssetInfo},
     factory::{PairConfig, PairType},
 };
-use cosmwasm_std::{to_binary, Addr, Coin, Uint128};
+use astroport_dca::QueryMsg;
+use cosmwasm_std::{to_binary, Addr, Coin, Decimal, Uint128};
 use cw20::Cw20Coin;
 use cw_multi_test::{App, AppBuilder, ContractWrapper, Executor};
+
+use crate::state::Config;
 
 pub const ADMIN: &str = "admin";
 pub const FEE: &str = "fee";
@@ -329,7 +332,50 @@ pub fn instantiate() -> (App, Addr) {
 
 #[test]
 fn proper_instantiate() -> Result<(), Box<dyn Error>> {
-    instantiate();
+    let (app, dca) = instantiate();
+
+    let Config {
+        max_hops,
+        max_spread,
+        whitelisted_tokens,
+        ..
+    } = app.wrap().query_wasm_smart(&dca, &QueryMsg::Config {})?;
+
+    assert_eq!(max_hops, 3);
+    assert_eq!(max_spread, Decimal::from_str("0.005")?);
+    assert_eq!(
+        whitelisted_tokens,
+        vec![
+            AssetInfo::NativeToken {
+                denom: LUNA.to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: USDC.to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: USDT.to_string(),
+            },
+        ]
+    );
+
+    let tips: Vec<Asset> = app.wrap().query_wasm_smart(&dca, &QueryMsg::Tips {})?;
+    assert_eq!(
+        tips,
+        vec![
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: USDC.to_string(),
+                },
+                amount: Uint128::new(1_000_000), // 1 usd per hop
+            },
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: USDC.to_string(),
+                },
+                amount: Uint128::new(1_000_000), // 1 usd per hop
+            },
+        ]
+    );
 
     Ok(())
 }
