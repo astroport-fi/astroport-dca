@@ -1,5 +1,5 @@
 use astroport::asset::{addr_validate_to_lower, AssetInfo};
-use astroport_dca::dca::DcaQueryInfo;
+use astroport_dca::DcaQueryInfo;
 use cosmwasm_std::{Deps, Env, StdResult};
 
 use crate::{get_token_allowance::get_token_allowance, state::USER_DCA};
@@ -24,7 +24,6 @@ pub fn get_user_dca_orders(deps: Deps, env: Env, user: String) -> StdResult<Vec<
         .into_iter()
         .map(|order| {
             Ok(DcaQueryInfo {
-                info: order,
                 token_allowance: match &order.initial_asset.info {
                     AssetInfo::NativeToken { .. } => order.initial_asset.amount,
                     AssetInfo::Token { contract_addr } => {
@@ -32,6 +31,7 @@ pub fn get_user_dca_orders(deps: Deps, env: Env, user: String) -> StdResult<Vec<
                         get_token_allowance(&deps, &env, &user_address, contract_addr)?
                     }
                 },
+                info: order,
             })
         })
         .collect::<StdResult<Vec<_>>>()

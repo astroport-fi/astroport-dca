@@ -1,7 +1,8 @@
 use astroport::asset::addr_validate_to_lower;
+use astroport_dca::UserConfig;
 use cosmwasm_std::{Deps, StdResult};
 
-use crate::state::{UserConfig, USER_CONFIG};
+use crate::state::USER_CONFIG;
 
 /// ## Description
 /// Returns the configuration set for a user to override the default contract configuration.

@@ -2,7 +2,7 @@ use astroport::{
     asset::{addr_validate_to_lower, AssetInfo, UUSD_DENOM},
     router::{ExecuteMsg as RouterExecuteMsg, SwapOperation},
 };
-use astroport_dca::dca::DcaInfo;
+use astroport_dca::{DcaInfo, UserConfig};
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128,
     WasmMsg,
@@ -11,7 +11,7 @@ use cw20::Cw20ExecuteMsg;
 
 use crate::{
     error::ContractError,
-    state::{UserConfig, CONFIG, USER_CONFIG, USER_DCA},
+    state::{CONFIG, USER_CONFIG, USER_DCA},
 };
 
 /// ## Description
@@ -179,7 +179,7 @@ pub fn perform_dca_purchase(
                     msg: to_binary(&RouterExecuteMsg::ExecuteSwapOperations {
                         operations: hops,
                         minimum_receive: None,
-                        to: Some(user_address.clone()),
+                        to: Some(user_address.to_string()),
                         max_spread: Some(max_spread),
                     })?,
                 }

@@ -1,10 +1,8 @@
 use astroport::asset::UUSD_DENOM;
+use astroport_dca::UserConfig;
 use cosmwasm_std::{attr, DepsMut, MessageInfo, Response, StdResult};
 
-use crate::{
-    error::ContractError,
-    state::{UserConfig, USER_CONFIG},
-};
+use crate::{error::ContractError, state::USER_CONFIG};
 
 /// ## Description
 /// Adds a tip to the contract for a users DCA purchases.
@@ -44,22 +42,18 @@ pub fn add_bot_tip(deps: DepsMut, info: MessageInfo) -> Result<Response, Contrac
 
 #[cfg(test)]
 mod tests {
-    use astroport_dca::dca::ExecuteMsg;
+    use astroport_dca::{ExecuteMsg, UserConfig};
     use cosmwasm_std::{
         attr, coin,
         testing::{mock_dependencies, mock_env, mock_info},
         Addr, Response,
     };
 
-    use crate::{
-        contract::execute,
-        error::ContractError,
-        state::{UserConfig, USER_CONFIG},
-    };
+    use crate::{contract::execute, error::ContractError, state::USER_CONFIG};
 
     #[test]
     fn does_add_bot_tip() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let tip_sent = coin(10000, "uusd");
 
@@ -91,7 +85,7 @@ mod tests {
 
     #[test]
     fn does_require_funds() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::AddBotTip {};
@@ -103,7 +97,7 @@ mod tests {
 
     #[test]
     fn does_require_uusd_funds() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[coin(20000, "ukrw")]);
         let msg = ExecuteMsg::AddBotTip {};

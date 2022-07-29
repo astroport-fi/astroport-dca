@@ -1,5 +1,5 @@
 use astroport::asset::{Asset, AssetInfo};
-use astroport_dca::dca::DcaInfo;
+use astroport_dca::DcaInfo;
 use cosmwasm_std::{attr, DepsMut, Env, MessageInfo, Response, StdError, Uint128};
 
 use crate::{error::ContractError, get_token_allowance::get_token_allowance, state::USER_DCA};

@@ -4,7 +4,7 @@ use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use astroport_dca::dca::DcaInfo;
+use astroport_dca::{DcaInfo, UserConfig};
 
 /// Stores the main dca module parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -26,27 +26,6 @@ pub struct Config {
 impl Config {
     pub fn is_whitelisted_asset(&self, asset: &AssetInfo) -> bool {
         self.whitelisted_tokens.contains(asset)
-    }
-}
-
-/// Stores the users custom configuration
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UserConfig {
-    /// An override for the maximum amount of hops to perform from `initial_asset` to `target_asset` when DCAing
-    pub max_hops: Option<u32>,
-    /// An override for the maximum amount of spread when performing a swap from `initial_asset` to `target_asset` when DCAing
-    pub max_spread: Option<Decimal>,
-    /// The amount of uusd the user has deposited for their tips when performing DCA purchases
-    pub tip_balance: Uint128,
-}
-
-impl Default for UserConfig {
-    fn default() -> Self {
-        UserConfig {
-            max_hops: None,
-            max_spread: None,
-            tip_balance: Uint128::zero(),
-        }
     }
 }
 

@@ -13,7 +13,7 @@ use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
-use astroport_dca::dca::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use astroport_dca::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cw2::set_contract_version;
 
 /// Contract name that is used for migration.

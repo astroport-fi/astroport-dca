@@ -49,18 +49,14 @@ pub fn withdraw(
 
 #[cfg(test)]
 mod tests {
-    use astroport_dca::dca::ExecuteMsg;
+    use astroport_dca::{ExecuteMsg, UserConfig};
     use cosmwasm_std::{
         attr, coin,
         testing::{mock_dependencies, mock_env, mock_info},
         Addr, BankMsg, DepsMut, MessageInfo, OverflowError, OverflowOperation, Response, Uint128,
     };
 
-    use crate::{
-        contract::execute,
-        error::ContractError,
-        state::{UserConfig, USER_CONFIG},
-    };
+    use crate::{contract::execute, error::ContractError, state::USER_CONFIG};
 
     fn add_tip(deps: DepsMut, info: MessageInfo) {
         execute(deps, mock_env(), info, ExecuteMsg::AddBotTip {}).unwrap();
@@ -68,7 +64,7 @@ mod tests {
 
     #[test]
     fn will_withdraw_tip() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let tip_sent = coin(10_000, "uusd");
 
@@ -98,7 +94,7 @@ mod tests {
 
     #[test]
     fn does_update_config() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let tip_sent = coin(10_000, "uusd");
         let tip_withdraw = coin(5_000, "uusd");
@@ -127,7 +123,7 @@ mod tests {
 
     #[test]
     fn wont_excess_withdraw() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let tip_sent = coin(10_000, "uusd");
         let tip_withdraw = coin(15_000, "uusd");

@@ -1,9 +1,7 @@
+use astroport_dca::UserConfig;
 use cosmwasm_std::{attr, Decimal, DepsMut, MessageInfo, Response};
 
-use crate::{
-    error::ContractError,
-    state::{UserConfig, USER_CONFIG},
-};
+use crate::{error::ContractError, state::USER_CONFIG};
 
 fn serde_option<T>(option: Option<T>) -> String
 where
@@ -59,21 +57,18 @@ pub fn update_user_config(
 mod tests {
     use std::str::FromStr;
 
-    use astroport_dca::dca::ExecuteMsg;
+    use astroport_dca::{ExecuteMsg, UserConfig};
     use cosmwasm_std::{
         attr, coin,
         testing::{mock_dependencies, mock_env, mock_info},
         Decimal, Response, Uint128,
     };
 
-    use crate::{
-        contract::execute,
-        state::{UserConfig, USER_CONFIG},
-    };
+    use crate::{contract::execute, state::USER_CONFIG};
 
     #[test]
     fn does_update_user_config() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::UpdateUserConfig {
@@ -106,7 +101,7 @@ mod tests {
 
     #[test]
     fn does_not_change_tip_balance() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::UpdateUserConfig {
@@ -128,7 +123,7 @@ mod tests {
 
     #[test]
     fn does_reset_config() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[]);
         let update_msg = ExecuteMsg::UpdateUserConfig {
