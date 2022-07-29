@@ -126,7 +126,7 @@ mod tests {
 
         // add tip
         let send_info = mock_info("creator", &[coin(10_000, "uusd")]);
-        let send_tip_msg = ExecuteMsg::AddBotTip {};
+        let send_tip_msg = ExecuteMsg::AddTips {};
         execute(deps.as_mut(), mock_env(), send_info.clone(), send_tip_msg).unwrap();
 
         // does not modify the tip balance

@@ -90,7 +90,7 @@ mod tests {
         .unwrap();
 
         let info = mock_info("creator", &[tip_sent.clone()]);
-        let msg = ExecuteMsg::AddBotTip {};
+        let msg = ExecuteMsg::AddTips {};
 
         // check that we got the expected response
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -122,7 +122,7 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[]);
-        let msg = ExecuteMsg::AddBotTip {};
+        let msg = ExecuteMsg::AddTips {};
 
         // should error with InvalidZeroAmount failure
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
@@ -145,7 +145,7 @@ mod tests {
         .unwrap();
 
         let info = mock_info("creator", &[coin(20000, "ukrw")]);
-        let msg = ExecuteMsg::AddBotTip {};
+        let msg = ExecuteMsg::AddTips {};
 
         // should error with InvalidZeroAmount
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();

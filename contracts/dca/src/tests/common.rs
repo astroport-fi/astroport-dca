@@ -19,6 +19,7 @@ pub const USER_ONE: &str = "userone";
 pub const LUNA: &str = "uluna";
 pub const USDC: &str = "uusdc";
 pub const USDT: &str = "uusdt";
+pub const OSMO: &str = "uosmo";
 
 pub const CW20_CODE: u64 = 1;
 
@@ -51,6 +52,21 @@ pub fn new_cw20(app: &mut App, owner: &str) -> Addr {
     .unwrap()
 }
 
+pub fn native_info(denom: impl Into<String>) -> AssetInfo {
+    AssetInfo::NativeToken {
+        denom: denom.into(),
+    }
+}
+
+pub fn native_asset(denom: impl Into<String>, amount: u128) -> Asset {
+    Asset {
+        info: AssetInfo::NativeToken {
+            denom: denom.into(),
+        },
+        amount: Uint128::new(amount),
+    }
+}
+
 pub fn instantiate() -> (App, Addr) {
     let mut app = AppBuilder::new().build(|r, _, storage| {
         r.bank
@@ -61,6 +77,7 @@ pub fn instantiate() -> (App, Addr) {
                     Coin::new(1_500_000_001, LUNA),
                     Coin::new(3_000_000_001, USDC),
                     Coin::new(2_000_000_001, USDT),
+                    Coin::new(1_000_000_001, OSMO),
                 ],
             )
             .unwrap();
@@ -73,6 +90,7 @@ pub fn instantiate() -> (App, Addr) {
                     Coin::new(1_000_000_000, LUNA),
                     Coin::new(1_000_000_000, USDC),
                     Coin::new(1_000_000_000, USDT),
+                    Coin::new(1_000_000_000, OSMO),
                 ],
             )
             .unwrap();
@@ -158,7 +176,12 @@ pub fn instantiate() -> (App, Addr) {
                 owner: ADMIN.to_string(),
                 whitelist_code_id: cw1_code,
             },
-            &[Coin::new(1, LUNA), Coin::new(1, USDC), Coin::new(1, USDT)],
+            &[
+                Coin::new(1, LUNA),
+                Coin::new(1, USDC),
+                Coin::new(1, USDT),
+                Coin::new(1, OSMO),
+            ],
             "factory",
             None,
         )
@@ -170,14 +193,7 @@ pub fn instantiate() -> (App, Addr) {
             factory.clone(),
             &astroport::factory::ExecuteMsg::CreatePair {
                 pair_type: PairType::Xyk {},
-                asset_infos: [
-                    AssetInfo::NativeToken {
-                        denom: LUNA.to_string(),
-                    },
-                    AssetInfo::NativeToken {
-                        denom: USDC.to_string(),
-                    },
-                ],
+                asset_infos: [native_info(LUNA), native_info(USDC)],
                 init_params: None,
             },
             &[],
@@ -195,18 +211,8 @@ pub fn instantiate() -> (App, Addr) {
         Addr::unchecked(&luna_usdc_pair_addr),
         &astroport::pair::ExecuteMsg::ProvideLiquidity {
             assets: [
-                Asset {
-                    info: AssetInfo::NativeToken {
-                        denom: LUNA.to_string(),
-                    },
-                    amount: Uint128::new(500_000_000),
-                },
-                Asset {
-                    info: AssetInfo::NativeToken {
-                        denom: USDC.to_string(),
-                    },
-                    amount: Uint128::new(1_000_000_000),
-                },
+                native_asset(LUNA, 500_000_000),
+                native_asset(USDC, 1_000_000_000),
             ],
             slippage_tolerance: None,
             auto_stake: None,
@@ -222,14 +228,7 @@ pub fn instantiate() -> (App, Addr) {
             factory.clone(),
             &astroport::factory::ExecuteMsg::CreatePair {
                 pair_type: PairType::Stable {},
-                asset_infos: [
-                    AssetInfo::NativeToken {
-                        denom: USDT.to_string(),
-                    },
-                    AssetInfo::NativeToken {
-                        denom: USDC.to_string(),
-                    },
-                ],
+                asset_infos: [native_info(USDT), native_info(USDC)],
                 init_params: Some(
                     to_binary(&astroport::pair::StablePoolParams { amp: 10 }).unwrap(),
                 ),
@@ -249,18 +248,8 @@ pub fn instantiate() -> (App, Addr) {
         Addr::unchecked(&usdt_usdc_pair_addr),
         &astroport::pair::ExecuteMsg::ProvideLiquidity {
             assets: [
-                Asset {
-                    info: AssetInfo::NativeToken {
-                        denom: USDT.to_string(),
-                    },
-                    amount: Uint128::new(1_000_000_000),
-                },
-                Asset {
-                    info: AssetInfo::NativeToken {
-                        denom: USDC.to_string(),
-                    },
-                    amount: Uint128::new(1_000_000_000),
-                },
+                native_asset(USDT, 1_000_000_000),
+                native_asset(USDC, 1_000_000_000),
             ],
             slippage_tolerance: None,
             auto_stake: None,
@@ -292,34 +281,11 @@ pub fn instantiate() -> (App, Addr) {
             Addr::unchecked(ADMIN),
             &astroport_dca::InstantiateMsg {
                 max_hops: 3,
-                whitelisted_tokens: vec![
-                    AssetInfo::NativeToken {
-                        denom: LUNA.to_string(),
-                    },
-                    AssetInfo::NativeToken {
-                        denom: USDC.to_string(),
-                    },
-                    AssetInfo::NativeToken {
-                        denom: USDT.to_string(),
-                    },
-                ],
+                whitelisted_tokens: vec![native_info(LUNA), native_info(USDC), native_info(USDT)],
                 max_spread: "0.005".to_string(), // 0.5%
                 factory_addr: factory.to_string(),
                 router_addr: router.to_string(),
-                tips: vec![
-                    Asset {
-                        info: AssetInfo::NativeToken {
-                            denom: USDC.to_string(),
-                        },
-                        amount: Uint128::new(1_000_000), // 1 usd per hop
-                    },
-                    Asset {
-                        info: AssetInfo::NativeToken {
-                            denom: USDC.to_string(),
-                        },
-                        amount: Uint128::new(1_000_000), // 1 usd per hop
-                    },
-                ],
+                tips: vec![native_asset(USDC, 1_000_000), native_asset(USDT, 1_000_000)],
             },
             &[],
             "dca",
@@ -345,36 +311,13 @@ fn proper_instantiate() -> Result<(), Box<dyn Error>> {
     assert_eq!(max_spread, Decimal::from_str("0.005")?);
     assert_eq!(
         whitelisted_tokens,
-        vec![
-            AssetInfo::NativeToken {
-                denom: LUNA.to_string(),
-            },
-            AssetInfo::NativeToken {
-                denom: USDC.to_string(),
-            },
-            AssetInfo::NativeToken {
-                denom: USDT.to_string(),
-            },
-        ]
+        vec![native_info(LUNA), native_info(USDC), native_info(USDT)]
     );
 
     let tips: Vec<Asset> = app.wrap().query_wasm_smart(&dca, &QueryMsg::Tips {})?;
     assert_eq!(
         tips,
-        vec![
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: USDC.to_string(),
-                },
-                amount: Uint128::new(1_000_000), // 1 usd per hop
-            },
-            Asset {
-                info: AssetInfo::NativeToken {
-                    denom: USDC.to_string(),
-                },
-                amount: Uint128::new(1_000_000), // 1 usd per hop
-            },
-        ]
+        vec![native_asset(USDC, 1_000_000), native_asset(USDT, 1_000_000)]
     );
 
     Ok(())

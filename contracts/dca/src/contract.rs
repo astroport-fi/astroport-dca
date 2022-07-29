@@ -153,7 +153,7 @@ pub fn execute(
         ExecuteMsg::Receive(receive_msg) => {
             let sender = deps.api.addr_validate(&receive_msg.sender)?;
             match from_binary(&receive_msg.msg)? {
-                Cw20HookMsg::AddBotTip {} => add_bot_tip(
+                Cw20HookMsg::AddBotTips {} => add_bot_tip(
                     deps,
                     MessageInfo {
                         sender,
@@ -194,7 +194,7 @@ pub fn execute(
             dca_amount,
             start_at,
         ),
-        ExecuteMsg::AddBotTip {} => add_bot_tip(
+        ExecuteMsg::AddTips {} => add_bot_tip(
             deps,
             info.clone(),
             info.funds
@@ -205,7 +205,7 @@ pub fn execute(
                 })
                 .collect::<Vec<_>>(),
         ),
-        ExecuteMsg::Withdraw { tips } => withdraw(deps, info, tips),
+        ExecuteMsg::WithdrawTips { tips } => withdraw(deps, info, tips),
         ExecuteMsg::PerformDcaPurchase { id, hops } => {
             perform_dca_purchase(deps, env, info, id, hops)
         }

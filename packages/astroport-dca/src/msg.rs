@@ -33,7 +33,11 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
     /// Add top-up for bots to perform DCA requests
-    AddBotTip {},
+    AddTips {},
+    /// Withdraws a users bot tip from the contract.
+    WithdrawTips {
+        tips: Vec<Asset>,
+    },
     /// Cancels a DCA order, returning any native asset back to the user
     CancelDcaOrder {
         id: u64,
@@ -81,10 +85,6 @@ pub enum ExecuteMsg {
         /// The maximum spread per token when performing DCA purchases
         max_spread: Option<Decimal>,
     },
-    /// Withdraws a users bot tip from the contract.
-    Withdraw {
-        tips: Vec<Asset>,
-    },
 }
 
 /// This structure describes the query messages available in the contract
@@ -116,7 +116,7 @@ pub struct MigrateMsg {}
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
     /// Add top-up for bots to perform DCA requests
-    AddBotTip {},
+    AddBotTips {},
 }
 
 /// Describes information for a UserDcaOrders query

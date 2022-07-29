@@ -16,5 +16,7 @@ use crate::state::USER_CONFIG;
 pub fn get_user_config(deps: Deps, user: String) -> StdResult<UserConfig> {
     let user_address = addr_validate_to_lower(deps.api, &user)?;
 
-    USER_CONFIG.load(deps.storage, &user_address)
+    Ok(USER_CONFIG
+        .may_load(deps.storage, &user_address)?
+        .unwrap_or_default())
 }
