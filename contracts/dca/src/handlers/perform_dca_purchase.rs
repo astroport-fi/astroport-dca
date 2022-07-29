@@ -149,10 +149,11 @@ pub fn perform_dca_purchase(
     // validate purchaser has enough funds to pay the sender
     let tip_costs = TIPS.load(deps.storage)?;
     let mut is_paid = false;
-    for (idx, balance) in user_config.tips_balance.iter_mut().enumerate() {
+    'check_bal: for (idx, balance) in user_config.tips_balance.iter_mut().enumerate() {
         let this_cost = tip_costs.iter().find(|e| e.info == balance.info);
-        if let Some(cost) = this_cost {
-            if let Ok(new_balance) = balance.amount.checked_sub(cost.amount) {
+        if let Some(cost_per_hop) = this_cost {
+            let total_cost = cost_per_hop.amount * Uint128::from(hops_len);
+            if let Ok(new_balance) = balance.amount.checked_sub(total_cost) {
                 match new_balance == Uint128::zero() {
                     true => {
                         user_config.tips_balance.remove(idx);
@@ -163,12 +164,12 @@ pub fn perform_dca_purchase(
                 }
                 is_paid = true;
 
-                messages.push(match &cost.info {
+                messages.push(match &cost_per_hop.info {
                     AssetInfo::Token { contract_addr } => CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: contract_addr.to_string(),
                         msg: to_binary(&Cw20ExecuteMsg::Transfer {
                             recipient: info.sender.to_string(),
-                            amount: cost.amount,
+                            amount: total_cost,
                         })?,
                         funds: vec![],
                     }),
@@ -176,12 +177,12 @@ pub fn perform_dca_purchase(
                         to_address: info.sender.to_string(),
                         amount: vec![Coin {
                             denom: denom.clone(),
-                            amount: cost.amount,
+                            amount: total_cost,
                         }],
                     }),
                 });
 
-                break;
+                break 'check_bal;
             }
         }
     }
