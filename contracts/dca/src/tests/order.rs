@@ -4,9 +4,9 @@ use astroport_dca::{DcaInfo, ExecuteMsg, QueryMsg, UserDcaInfo};
 use cosmwasm_std::{Addr, Coin, Uint128};
 use cw_multi_test::Executor;
 
-use crate::{error::ContractError, tests::common::USDT};
+use crate::error::ContractError;
 
-use super::common::{instantiate, native_asset, native_info, LUNA, USDC, USER_ONE};
+use super::common::*;
 
 #[test]
 fn create_order_not_duplicate() -> Result<(), Box<dyn Error>> {

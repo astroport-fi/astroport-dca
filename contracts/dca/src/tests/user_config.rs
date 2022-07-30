@@ -4,7 +4,7 @@ use astroport_dca::{ExecuteMsg, QueryMsg, UserConfig};
 use cosmwasm_std::{Addr, Decimal};
 use cw_multi_test::Executor;
 
-use super::common::{instantiate, USER_ONE};
+use super::common::*;
 
 #[test]
 fn update_user_config_works() -> Result<(), Box<dyn Error>> {

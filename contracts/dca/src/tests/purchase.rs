@@ -5,14 +5,9 @@ use astroport_dca::ExecuteMsg;
 use cosmwasm_std::{Addr, Coin, Uint128};
 use cw_multi_test::Executor;
 
-use crate::{
-    error::ContractError,
-    tests::common::{OSMO, USDT},
-};
+use crate::error::ContractError;
 
-use super::common::{
-    instantiate, native_asset, native_info, proceed, LUNA, USDC, USER_ONE, USER_TWO,
-};
+use super::common::*;
 
 #[test]
 fn purchase_not_too_early() -> Result<(), Box<dyn Error>> {

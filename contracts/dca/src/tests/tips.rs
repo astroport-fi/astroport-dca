@@ -4,12 +4,9 @@ use astroport_dca::{ExecuteMsg, QueryMsg, UserConfig};
 use cosmwasm_std::{Addr, Coin};
 use cw_multi_test::Executor;
 
-use crate::{
-    error::ContractError,
-    tests::common::{native_asset, USDC, USDT},
-};
+use crate::error::ContractError;
 
-use super::common::{instantiate, OSMO, USER_ONE};
+use super::common::*;
 
 #[test]
 fn empty_tips_balance() -> Result<(), Box<dyn Error>> {
