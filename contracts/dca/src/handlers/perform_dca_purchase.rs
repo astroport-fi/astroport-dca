@@ -3,13 +3,13 @@ use astroport::{
     router::{ExecuteMsg as RouterExecuteMsg, SwapOperation},
 };
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128,
-    WasmMsg,
+    attr, to_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
 use crate::{
     error::ContractError,
+    helpers::asset_transfer,
     state::{CONFIG, DCA, TIPS, USER_CONFIG},
 };
 
@@ -168,23 +168,11 @@ pub fn perform_dca_purchase(
                 }
                 is_paid = true;
 
-                messages.push(match &cost_per_hop.info {
-                    AssetInfo::Token { contract_addr } => CosmosMsg::Wasm(WasmMsg::Execute {
-                        contract_addr: contract_addr.to_string(),
-                        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                            recipient: info.sender.to_string(),
-                            amount: total_cost,
-                        })?,
-                        funds: vec![],
-                    }),
-                    AssetInfo::NativeToken { denom } => CosmosMsg::Bank(BankMsg::Send {
-                        to_address: info.sender.to_string(),
-                        amount: vec![Coin {
-                            denom: denom.clone(),
-                            amount: total_cost,
-                        }],
-                    }),
-                });
+                messages.push(asset_transfer(
+                    &cost_per_hop.info,
+                    total_cost,
+                    &info.sender,
+                )?);
 
                 break 'check_bal;
             }

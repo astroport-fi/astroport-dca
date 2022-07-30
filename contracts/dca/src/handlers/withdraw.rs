@@ -1,10 +1,7 @@
-use astroport::asset::{Asset, AssetInfo};
-use cosmwasm_std::{
-    attr, to_binary, BankMsg, Coin, CosmosMsg, DepsMut, MessageInfo, Response, WasmMsg,
-};
-use cw20::Cw20ExecuteMsg;
+use astroport::asset::Asset;
+use cosmwasm_std::{attr, CosmosMsg, DepsMut, MessageInfo, Response};
 
-use crate::{error::ContractError, state::USER_CONFIG};
+use crate::{error::ContractError, helpers::asset_transfer, state::USER_CONFIG};
 
 /// ## Description
 /// Withdraws a users bot tip from the contract.
@@ -53,23 +50,7 @@ pub fn withdraw(
             }
         };
 
-        msgs.push(match asset.info {
-            AssetInfo::Token { contract_addr } => CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: contract_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: info.sender.to_string(),
-                    amount: asset.amount,
-                })?,
-                funds: vec![],
-            }),
-            AssetInfo::NativeToken { denom } => CosmosMsg::Bank(BankMsg::Send {
-                to_address: info.sender.to_string(),
-                amount: vec![Coin {
-                    denom,
-                    amount: asset.amount,
-                }],
-            }),
-        });
+        msgs.push(asset_transfer(&asset.info, asset.amount, &info.sender)?);
     }
 
     USER_CONFIG.save(deps.storage, &info.sender, &config)?;
