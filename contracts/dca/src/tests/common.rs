@@ -16,6 +16,7 @@ use crate::state::Config;
 pub const ADMIN: &str = "admin";
 pub const FEE: &str = "fee";
 pub const USER_ONE: &str = "userone";
+pub const USER_TWO: &str = "usertwo";
 pub const LUNA: &str = "uluna";
 pub const USDC: &str = "uusdc";
 pub const USDT: &str = "uusdt";

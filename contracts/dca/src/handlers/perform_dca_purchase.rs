@@ -72,29 +72,33 @@ pub fn perform_dca_purchase(
                 ask_asset_info,
             } => {
                 // validate the first offer asset info
-                (idx == 0 && offer_asset_info == &order.initial_asset.info)
-                    .then(|| ())
-                    .ok_or(ContractError::InitialAssetAssertion {})?;
+                if idx == 0 {
+                    (offer_asset_info == &order.initial_asset.info)
+                        .then(|| ())
+                        .ok_or(ContractError::InitialAssetAssertion {})?;
+                }
 
                 // validate the last ask asset info
-                (idx == (hops.len() - 1) && ask_asset_info == &order.target_asset)
-                    .then(|| ())
-                    .ok_or(ContractError::TargetAssetAssertion {})?;
+                if idx == hops.len() - 1 {
+                    (ask_asset_info == &order.target_asset)
+                        .then(|| ())
+                        .ok_or(ContractError::TargetAssetAssertion {})?;
+                }
 
                 // validate that all middle hops (last hop excluded) are whitelisted tokens for the ask_denom or ask_asset
-                (idx != 0
-                    && idx != (hops.len() - 1)
-                    && contract_config.is_whitelisted_asset(ask_asset_info))
-                .then(|| ())
-                .ok_or(ContractError::InvalidHopRoute {
-                    token: ask_asset_info.to_string(),
-                })?;
+                if hops.len() > 1 && idx < hops.len() - 1 {
+                    (contract_config.is_whitelisted_asset(ask_asset_info))
+                        .then(|| ())
+                        .ok_or(ContractError::InvalidHopRoute {
+                            token: ask_asset_info.to_string(),
+                        })?;
+                }
             }
         };
     }
 
     // check that it has been long enough between dca purchases
-    if order.last_purchase + order.interval >= env.block.time.seconds() {
+    if order.last_purchase + order.interval > env.block.time.seconds() {
         return Err(ContractError::PurchaseTooEarly {});
     }
 
@@ -193,6 +197,9 @@ pub fn perform_dca_purchase(
 
     // update user tip balance
     USER_CONFIG.save(deps.storage, &order.owner, &user_config)?;
+
+    // update order
+    DCA.save(deps.storage, id, &order)?;
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "perform_dca_purchase"),
