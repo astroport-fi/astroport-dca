@@ -34,7 +34,7 @@ fn purchase_not_too_early() -> Result<(), Box<dyn Error>> {
     let err = app
         .execute_contract(
             Addr::unchecked(USER_TWO),
-            dca.clone(),
+            dca,
             &ExecuteMsg::PerformDcaPurchase {
                 id: 0,
                 hops: vec![SwapOperation::AstroSwap {
@@ -74,7 +74,7 @@ fn purchase_hops_not_empty() -> Result<(), Box<dyn Error>> {
     let err = app
         .execute_contract(
             Addr::unchecked(USER_TWO),
-            dca.clone(),
+            dca,
             &ExecuteMsg::PerformDcaPurchase {
                 id: 0,
                 hops: vec![],
@@ -111,7 +111,7 @@ fn purchase_not_exceed_max_hops() -> Result<(), Box<dyn Error>> {
     let err = app
         .execute_contract(
             Addr::unchecked(USER_TWO),
-            dca.clone(),
+            dca,
             &ExecuteMsg::PerformDcaPurchase {
                 id: 0,
                 hops: vec![
@@ -165,7 +165,7 @@ fn purchase_correct_target_info() -> Result<(), Box<dyn Error>> {
     let err = app
         .execute_contract(
             Addr::unchecked(USER_TWO),
-            dca.clone(),
+            dca,
             &ExecuteMsg::PerformDcaPurchase {
                 id: 0,
                 hops: vec![SwapOperation::AstroSwap {
@@ -225,7 +225,7 @@ fn purchase_correct_initial_info() -> Result<(), Box<dyn Error>> {
     let err = app
         .execute_contract(
             Addr::unchecked(USER_TWO),
-            dca.clone(),
+            dca,
             &ExecuteMsg::PerformDcaPurchase {
                 id: 0,
                 hops: vec![
@@ -271,7 +271,7 @@ fn purchase_whitelisted_hop_route() -> Result<(), Box<dyn Error>> {
     let err = app
         .execute_contract(
             Addr::unchecked(USER_TWO),
-            dca.clone(),
+            dca,
             &ExecuteMsg::PerformDcaPurchase {
                 id: 0,
                 hops: vec![
@@ -341,7 +341,7 @@ fn purchase_insuf_bal() -> Result<(), Box<dyn Error>> {
     let err = app
         .execute_contract(
             Addr::unchecked(USER_TWO),
-            dca.clone(),
+            dca,
             &ExecuteMsg::PerformDcaPurchase {
                 id: 0,
                 hops: vec![SwapOperation::AstroSwap {

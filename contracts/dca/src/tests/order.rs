@@ -15,7 +15,7 @@ fn create_order_not_duplicate() -> Result<(), Box<dyn Error>> {
     let err = app
         .execute_contract(
             Addr::unchecked(USER_ONE),
-            dca.clone(),
+            dca,
             &ExecuteMsg::CreateDcaOrder {
                 initial_asset: native_asset(USDC, 50_000_000),
                 target_asset: native_info(USDC),
@@ -42,7 +42,7 @@ fn create_order_dca_divisible() -> Result<(), Box<dyn Error>> {
     let err = app
         .execute_contract(
             Addr::unchecked(USER_ONE),
-            dca.clone(),
+            dca,
             &ExecuteMsg::CreateDcaOrder {
                 initial_asset: native_asset(USDC, 50_000_000),
                 target_asset: native_info(USDT),
@@ -69,7 +69,7 @@ fn create_order_not_too_small() -> Result<(), Box<dyn Error>> {
     let err = app
         .execute_contract(
             Addr::unchecked(USER_ONE),
-            dca.clone(),
+            dca,
             &ExecuteMsg::CreateDcaOrder {
                 initial_asset: native_asset(USDC, 50_000_000),
                 target_asset: native_info(USDT),
