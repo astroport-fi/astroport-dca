@@ -250,3 +250,70 @@ fn create_multiple_orders_diff_asset() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+#[test]
+fn create_multiple_orders_multiple_users() -> Result<(), Box<dyn Error>> {
+    let (mut app, dca) = instantiate();
+
+    app.execute_contract(
+        Addr::unchecked(USER_ONE),
+        dca.clone(),
+        &ExecuteMsg::CreateDcaOrder {
+            initial_asset: native_asset(USDC, 50_000_000),
+            target_asset: native_info(LUNA),
+            interval: 600,
+            dca_amount: Uint128::new(10_000_000),
+            start_at: None,
+        },
+        &[Coin::new(50_000_000, USDC)],
+    )?;
+
+    app.execute_contract(
+        Addr::unchecked(USER_ONE),
+        dca.clone(),
+        &ExecuteMsg::CreateDcaOrder {
+            initial_asset: native_asset(USDT, 50_000_000),
+            target_asset: native_info(LUNA),
+            interval: 600,
+            dca_amount: Uint128::new(10_000_000),
+            start_at: None,
+        },
+        &[Coin::new(50_000_000, USDT)],
+    )?;
+
+    app.execute_contract(
+        Addr::unchecked(USER_THREE),
+        dca.clone(),
+        &ExecuteMsg::CreateDcaOrder {
+            initial_asset: native_asset(USDT, 50_000_000),
+            target_asset: native_info(LUNA),
+            interval: 600,
+            dca_amount: Uint128::new(10_000_000),
+            start_at: None,
+        },
+        &[Coin::new(50_000_000, USDT)],
+    )?;
+
+    let infos: Vec<DcaInfo> = app.wrap().query_wasm_smart(
+        &dca,
+        &QueryMsg::AllDcaOrders {
+            start_after: None,
+            limit: None,
+            is_ascending: None,
+        },
+    )?;
+    assert_eq!(infos.len(), 3);
+    assert_eq!(
+        infos
+            .into_iter()
+            .map(|e| (e.id, e.owner.to_string()))
+            .collect::<Vec<_>>(),
+        vec![
+            (2u64, USER_THREE.to_string()),
+            (1u64, USER_ONE.to_string()),
+            (0u64, USER_ONE.to_string())
+        ],
+    );
+
+    Ok(())
+}

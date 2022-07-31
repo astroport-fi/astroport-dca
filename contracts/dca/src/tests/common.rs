@@ -17,6 +17,7 @@ pub const ADMIN: &str = "admin";
 pub const FEE: &str = "fee";
 pub const USER_ONE: &str = "userone";
 pub const USER_TWO: &str = "usertwo";
+pub const USER_THREE: &str = "userthree";
 pub const LUNA: &str = "uluna";
 pub const USDC: &str = "uusdc";
 pub const USDT: &str = "uusdt";
@@ -87,6 +88,19 @@ pub fn instantiate() -> (App, Addr) {
             .init_balance(
                 storage,
                 &Addr::unchecked(USER_ONE),
+                vec![
+                    Coin::new(1_000_000_000, LUNA),
+                    Coin::new(1_000_000_000, USDC),
+                    Coin::new(1_000_000_000, USDT),
+                    Coin::new(1_000_000_000, OSMO),
+                ],
+            )
+            .unwrap();
+
+        r.bank
+            .init_balance(
+                storage,
+                &Addr::unchecked(USER_THREE),
                 vec![
                     Coin::new(1_000_000_000, LUNA),
                     Coin::new(1_000_000_000, USDC),

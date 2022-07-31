@@ -16,9 +16,9 @@ pub fn get_all_dca_orders(
     limit: Option<u64>,
     is_ascending: Option<bool>,
 ) -> StdResult<Vec<DcaInfo>> {
-    let bound = match is_ascending.unwrap_or(true) {
+    let bound = match is_ascending.unwrap_or(false) {
         true => (start_after.map(Bound::exclusive), None, Order::Ascending),
-        false => (None, start_after.map(Bound::exclusive), Order::Ascending),
+        false => (None, start_after.map(Bound::exclusive), Order::Descending),
     };
 
     DCA.range(deps.storage, bound.0, bound.1, bound.2)
