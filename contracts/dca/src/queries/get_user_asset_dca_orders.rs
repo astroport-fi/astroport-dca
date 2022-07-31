@@ -8,7 +8,7 @@ use crate::{get_token_allowance::get_token_allowance, state::State};
 use crate::constants::{DEFAULT_LIMIT, MAX_LIMIT};
 
 /// ## Description
-/// Returns a users DCA orders currently set.
+/// Returns a users DCA orders currently set for a specific input asset.
 ///
 /// The result is returned in a [`Vec<DcaQueryInfo`] object of the users current DCA orders with the
 /// `amount` of each order set to the native token amount that can be spent, or the token allowance.
@@ -20,13 +20,16 @@ use crate::constants::{DEFAULT_LIMIT, MAX_LIMIT};
 ///
 /// * `user` - The users lowercase address as a [`String`].
 ///
+/// * `asset` - Asset for which the DCA orders should be returned [`AssetInfo`].
+///
 /// * `start_after` - Start after the provided DCA id [`Option<u64>`].
 ///
 /// * `limit` - Specifies how many items are returned - by default 10, max is 30 [`Option<u32>`].
-pub fn get_user_dca_orders(
+pub fn get_user_asset_dca_orders(
     deps: Deps,
     env: Env,
     user: String,
+    asset: AssetInfo,
     start_after: Option<u64>,
     limit: Option<u32>,
 ) -> StdResult<Vec<DcaQueryInfo>> {
@@ -37,11 +40,13 @@ pub fn get_user_dca_orders(
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = start_after.map(|id| Bound::exclusive(id));
 
+    let key = (user, asset.to_string());
+
     state
         .dca_requests
         .idx
-        .user
-        .prefix(user)
+        .user_asset
+        .prefix(key)
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {

@@ -1,8 +1,6 @@
-use astroport::asset::AssetInfo;
-use astroport_dca::dca::DcaInfo;
-use cosmwasm_std::{attr, BankMsg, Coin, DepsMut, MessageInfo, Response};
+use cosmwasm_std::{attr, DepsMut, MessageInfo, Response};
 
-use crate::{error::ContractError, state::USER_DCA};
+use crate::{error::ContractError, state::State};
 
 /// ## Description
 /// Cancels a users DCA purchase so that it will no longer be fulfilled.
@@ -20,40 +18,25 @@ use crate::{error::ContractError, state::USER_DCA};
 pub fn cancel_dca_order(
     deps: DepsMut,
     info: MessageInfo,
-    initial_asset: AssetInfo,
+    id: u64,
 ) -> Result<Response, ContractError> {
-    let mut funds = Vec::new();
+    let state = State::default();
+    let dca = state.dca_requests.load(deps.storage, id)?;
 
-    // remove order from user dca's, and add any native token funds for `initial_asset` into the `funds`.
-    USER_DCA.update(
-        deps.storage,
-        &info.sender,
-        |orders| -> Result<Vec<DcaInfo>, ContractError> {
-            let mut orders = orders.ok_or(ContractError::NonexistentDca {})?;
+    if dca.user != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
 
-            let order_position = orders
-                .iter()
-                .position(|order| order.initial_asset.info == initial_asset)
-                .ok_or(ContractError::NonexistentDca {})?;
+    let mut msgs = Vec::new();
 
-            let removed_order = &orders[order_position];
-            if let AssetInfo::NativeToken { denom } = &removed_order.initial_asset.info {
-                funds.push(BankMsg::Send {
-                    to_address: info.sender.to_string(),
-                    amount: vec![Coin {
-                        amount: removed_order.initial_asset.amount,
-                        denom: denom.clone(),
-                    }],
-                })
-            }
+    if dca.initial_asset.is_native_token() {
+        msgs.push(dca.initial_asset.into_msg(&deps.querier, dca.user)?);
+    }
 
-            orders.remove(order_position);
+    state.dca_requests.remove(deps.storage, id)?;
 
-            Ok(orders)
-        },
-    )?;
-
-    Ok(Response::new()
-        .add_messages(funds)
-        .add_attributes(vec![attr("action", "cancel_dca_order")]))
+    Ok(Response::new().add_messages(msgs).add_attributes(vec![
+        attr("action", "cancel_dca_order"),
+        attr("id", id.to_string()),
+    ]))
 }

@@ -1,23 +1,8 @@
 use astroport::asset::{Asset, AssetInfo};
-use cosmwasm_std::{attr, coins, BankMsg, DepsMut, Env, MessageInfo, Response, Uint128};
+use astroport_dca::dca::ModifyDcaOrderParameters;
+use cosmwasm_std::{attr, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError};
 
-use crate::{error::ContractError, get_token_allowance::get_token_allowance, state::USER_DCA};
-
-/// Stores a modified dca order new parameters
-pub struct ModifyDcaOrderParameters {
-    /// The old [`AssetInfo`] that was used to purchase DCA orders.
-    pub old_initial_asset: AssetInfo,
-    /// The new [`Asset`] that is being spent to create DCA orders.
-    pub new_initial_asset: Asset,
-    /// The [`AssetInfo`] that is being purchased with `new_initial_asset`.
-    pub new_target_asset: AssetInfo,
-    /// The time in seconds between DCA purchases.
-    pub new_interval: u64,
-    /// a [`Uint128`] amount of `new_initial_asset` to spend each DCA purchase.
-    pub new_dca_amount: Uint128,
-    /// A bool flag that determines if the order's last purchase time should be reset.
-    pub should_reset_purchase_time: bool,
-}
+use crate::{error::ContractError, get_token_allowance::get_token_allowance, state::State};
 
 /// ## Description
 /// Modifies an existing DCA order for a user such that the new parameters will apply to the
@@ -47,25 +32,28 @@ pub fn modify_dca_order(
     order_details: ModifyDcaOrderParameters,
 ) -> Result<Response, ContractError> {
     let ModifyDcaOrderParameters {
-        old_initial_asset,
+        id,
         new_initial_asset,
         new_target_asset,
         new_interval,
         new_dca_amount,
         should_reset_purchase_time,
+        max_hops,
+        max_spread,
+        start_purchase,
     } = order_details;
 
-    let mut orders = USER_DCA
-        .may_load(deps.storage, &info.sender)?
-        .unwrap_or_default();
+    let state = State::default();
+    let mut order = state.dca_requests.load(deps.storage, id)?;
 
-    // check that old_initial_asset.info exists
-    let order = orders
-        .iter_mut()
-        .find(|order| order.initial_asset.info == old_initial_asset)
-        .ok_or(ContractError::NonexistentDca {})?;
+    if order.user != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let orig_asset = order.initial_asset.clone();
 
     let should_refund = order.initial_asset.amount > new_initial_asset.amount;
+
     let asset_difference = Asset {
         info: new_initial_asset.info.clone(),
         amount: match should_refund {
@@ -79,16 +67,16 @@ pub fn modify_dca_order(
         },
     };
 
-    let mut messages = Vec::new();
+    let mut messages: Vec<CosmosMsg> = Vec::new();
 
-    if old_initial_asset == new_initial_asset.info {
+    if order.initial_asset.info == new_initial_asset.info {
         if !should_refund {
             // if the user needs to have deposited more, check that we have the correct funds/allowance sent
             // this is the case only when the old_initial_asset and new_initial_asset are the same
 
             // if native token, they should have included it in the message
             // otherwise, if cw20 token, they should have provided the correct allowance
-            match &old_initial_asset {
+            match &order.initial_asset.info {
                 AssetInfo::NativeToken { .. } => {
                     asset_difference.assert_sent_native_token_balance(&info)?
                 }
@@ -102,20 +90,18 @@ pub fn modify_dca_order(
             }
         } else {
             // we need to refund the user with the difference if it is a native token
-            if let AssetInfo::NativeToken { denom } = &new_initial_asset.info {
-                messages.push(BankMsg::Send {
-                    to_address: info.sender.to_string(),
-                    amount: coins(asset_difference.amount.u128(), denom),
-                })
+            if new_initial_asset.info.is_native_token() {
+                messages.push(asset_difference.into_msg(&deps.querier, info.sender)?)
             }
         }
     } else {
         // they are different assets, so we will return the old_initial_asset if it is a native token
-        if let AssetInfo::NativeToken { denom } = &new_initial_asset.info {
-            messages.push(BankMsg::Send {
-                to_address: info.sender.to_string(),
-                amount: coins(order.initial_asset.amount.u128(), denom),
-            })
+        if new_initial_asset.info.is_native_token() {
+            messages.push(
+                order
+                    .initial_asset
+                    .into_msg(&deps.querier, info.sender.clone())?,
+            )
         }
 
         // validate that user sent either native tokens or has set allowance for the new token
@@ -138,16 +124,46 @@ pub fn modify_dca_order(
     order.target_asset = new_target_asset.clone();
     order.interval = new_interval;
     order.dca_amount = new_dca_amount;
+    order.max_hops = max_hops;
+    order.max_spread = max_spread;
+    order.start_purchase = start_purchase;
 
     if should_reset_purchase_time {
         order.last_purchase = 0;
     }
 
-    USER_DCA.save(deps.storage, &info.sender, &orders)?;
+    if let Some(start_purchase) = order.start_purchase {
+        if start_purchase < env.block.time.seconds() {
+            return Err(ContractError::StartTimeInPast {});
+        }
+    }
+
+    // check that assets are not duplicate
+    if order.initial_asset.info == order.target_asset {
+        return Err(ContractError::DuplicateAsset {});
+    }
+
+    // check that dca_amount is less than initial_asset.amount
+    if order.dca_amount > order.initial_asset.amount {
+        return Err(ContractError::DepositTooSmall {});
+    }
+
+    // check that initial_asset.amount is divisible by dca_amount
+    if !order
+        .initial_asset
+        .amount
+        .checked_rem(order.dca_amount)
+        .map_err(|e| StdError::DivideByZero { source: e })?
+        .is_zero()
+    {
+        return Err(ContractError::IndivisibleDeposit {});
+    }
+
+    state.dca_requests.save(deps.storage, id, &order)?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "modify_dca_order"),
-        attr("old_initial_asset", old_initial_asset.to_string()),
+        attr("old_initial_asset", orig_asset.to_string()),
         attr("new_initial_asset", new_initial_asset.to_string()),
         attr("new_target_asset", new_target_asset.to_string()),
         attr("new_interval", new_interval.to_string()),
