@@ -13,7 +13,7 @@ use astroport_dca::dca::{DcaQueryInfo, InstantiateMsg, QueryMsg, ReceiveMsg, Tip
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{coin, to_binary, Addr, Coin, Decimal, Uint128};
+use cosmwasm_std::{coin, to_binary, Addr, Coin, Decimal, Timestamp, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, AppBuilder, BankKeeper, ContractWrapper, Executor};
 
@@ -31,7 +31,7 @@ fn mock_app(bank: BankKeeper) -> App {
     bank.init_balance(
         &mut storage,
         &Addr::unchecked("alice"),
-        vec![coin(100_000_000_000, "uluna")],
+        vec![coin(200_000_000_000_000, "uluna")],
     )
     .unwrap();
 
@@ -183,8 +183,8 @@ fn test_example_bounty_happy_path() {
     add_pair_and_liquidity(
         &mut app,
         &factory_contract,
-        native_amount("uluna", 100000),
-        token_amount(astro_token.to_string().as_str(), 4000000),
+        native_amount("uluna", 10000000000),
+        token_amount(astro_token.to_string().as_str(), 400000000000),
     );
 
     add_pair_and_liquidity(
@@ -218,8 +218,8 @@ fn test_example_bounty_happy_path() {
     add_pair_and_liquidity(
         &mut app,
         &factory_contract,
-        native_amount("uluna", 100000),
-        token_amount(a_token.to_string().as_str(), 100000),
+        native_amount("uluna", 10000000000),
+        token_amount(a_token.to_string().as_str(), 10000000),
     );
 
     add_pair_and_liquidity(
@@ -281,7 +281,7 @@ fn test_example_bounty_happy_path() {
         &dca_contract.to_string(),
         &Asset {
             info: a_asset.clone(),
-            amount: Uint128::new(2),
+            amount: Uint128::new(3),
         },
     );
     increase_allowance(
@@ -301,11 +301,11 @@ fn test_example_bounty_happy_path() {
         },
     );
 
-    let max_spread = Some(Decimal::from_str("0.05").unwrap());
+    let max_spread = Some(Decimal::from_str("0.1").unwrap());
     let create_dca = astroport_dca::dca::ExecuteMsg::CreateDcaOrder {
         initial_asset: Asset {
             info: a_asset.clone(),
-            amount: Uint128::new(2),
+            amount: Uint128::new(3),
         },
         target_asset: astro_asset.clone(),
         interval: 12 * 60 * 60,
@@ -410,6 +410,10 @@ fn test_example_bounty_happy_path() {
     let alice_a_balance = get_cw20_balance(&app, &a_token, &alice_address);
     let alice_astro_balance = get_cw20_balance(&app, &astro_token, &alice_address);
 
+    println!("------------------------");
+
+    app.update_block(|b| b.time = Timestamp::from_seconds(10));
+
     let perform_purchase = astroport_dca::dca::ExecuteMsg::PerformDcaPurchase {
         id: 1,
         hops: vec![SwapOperation::AstroSwap {
@@ -434,6 +438,124 @@ fn test_example_bounty_happy_path() {
     assert_eq!(bot_balance2.u128(), bot_balance.u128() + 10);
     assert_eq!(alice_a_balance2.u128(), alice_a_balance.u128() - 1);
     assert_eq!(alice_astro_balance2.u128(), alice_astro_balance.u128() + 39);
+
+    println!("------------------------ Perform with 2 swaps - native bot fee");
+    app.update_block(|b| b.time = Timestamp::from_seconds(12 * 60 * 60 + 10));
+
+    let bot_balance = get_luna_balance(&app, &bot_address);
+    let alice_a_balance = get_cw20_balance(&app, &a_token, &alice_address);
+    let alice_astro_balance = get_cw20_balance(&app, &astro_token, &alice_address);
+
+    let perform_purchase = astroport_dca::dca::ExecuteMsg::PerformDcaPurchase {
+        id: 1,
+        hops: vec![
+            SwapOperation::AstroSwap {
+                offer_asset_info: a_asset.clone(),
+                ask_asset_info: uluna_asset.clone(),
+            },
+            SwapOperation::AstroSwap {
+                offer_asset_info: uluna_asset.clone(),
+                ask_asset_info: astro_asset.clone(),
+            },
+        ],
+    };
+
+    let _res = app
+        .execute_contract(
+            bot_address.clone(),
+            dca_contract.clone(),
+            &perform_purchase,
+            &[],
+        )
+        .unwrap();
+
+    let bot_balance2 = get_luna_balance(&app, &bot_address);
+    let alice_a_balance2 = get_cw20_balance(&app, &a_token, &alice_address);
+    let alice_astro_balance2 = get_cw20_balance(&app, &astro_token, &alice_address);
+
+    // 2 hops = 2 * 10 uluna
+    assert_eq!(bot_balance2.u128(), bot_balance.u128() + 2 * 10);
+    assert_eq!(alice_a_balance2.u128(), alice_a_balance.u128() - 1);
+    assert_eq!(
+        alice_astro_balance2.u128(),
+        alice_astro_balance.u128() + 39959
+    );
+
+    println!("------------------------ Withdaw and add cw20 tip only");
+
+    let alice_luna_balance = get_luna_balance(&app, &alice_address);
+    let alice_usdc_balance = get_cw20_balance(&app, &usdc_token, &alice_address);
+    let _res = app
+        .execute_contract(
+            alice_address.clone(),
+            dca_contract.clone(),
+            &astroport_dca::dca::ExecuteMsg::Withdraw { assets: None },
+            &[],
+        )
+        .unwrap();
+
+    let alice_luna_balance2 = get_luna_balance(&app, &alice_address);
+    let alice_usdc_balance2 = get_cw20_balance(&app, &usdc_token, &alice_address);
+    assert_eq!(
+        alice_luna_balance2.u128(),
+        alice_luna_balance.u128() + 100 - 30
+    );
+    assert_eq!(alice_usdc_balance2.u128(), alice_usdc_balance.u128() + 100);
+
+    let add_bot_tip = Cw20ExecuteMsg::Send {
+        contract: dca_contract.to_string(),
+        amount: Uint128::new(100),
+        msg: to_binary(&ReceiveMsg::AddBotTip {}).unwrap(),
+    };
+
+    let _res = app
+        .execute_contract(alice_address.clone(), usdc_token.clone(), &add_bot_tip, &[])
+        .unwrap();
+
+    println!("------------------------ Perform with 2 swaps - cw20 bot fee");
+    app.update_block(|b| b.time = Timestamp::from_seconds(24 * 60 * 60 + 10));
+
+    let bot_luna_balance = get_luna_balance(&app, &bot_address);
+    let bot_usdc_balance = get_cw20_balance(&app, &usdc_token, &bot_address);
+    let alice_a_balance = get_cw20_balance(&app, &a_token, &alice_address);
+    let alice_astro_balance = get_cw20_balance(&app, &astro_token, &alice_address);
+
+    let perform_purchase = astroport_dca::dca::ExecuteMsg::PerformDcaPurchase {
+        id: 1,
+        hops: vec![
+            SwapOperation::AstroSwap {
+                offer_asset_info: a_asset.clone(),
+                ask_asset_info: uluna_asset.clone(),
+            },
+            SwapOperation::AstroSwap {
+                offer_asset_info: uluna_asset.clone(),
+                ask_asset_info: astro_asset.clone(),
+            },
+        ],
+    };
+
+    let _res = app
+        .execute_contract(
+            bot_address.clone(),
+            dca_contract.clone(),
+            &perform_purchase,
+            &[],
+        )
+        .unwrap();
+
+    let bot_luna_balance2 = get_luna_balance(&app, &bot_address);
+    let bot_usdc_balance2 = get_cw20_balance(&app, &usdc_token, &bot_address);
+    let alice_a_balance2 = get_cw20_balance(&app, &a_token, &alice_address);
+    let alice_astro_balance2 = get_cw20_balance(&app, &astro_token, &alice_address);
+
+    // 2 hops = 2 * 1 usdc
+    assert_eq!(bot_luna_balance2.u128(), bot_luna_balance.u128());
+    assert_eq!(bot_usdc_balance2.u128(), bot_usdc_balance.u128() + 2 * 1);
+    assert_eq!(alice_a_balance2.u128(), alice_a_balance.u128() - 1);
+    assert_eq!(
+        alice_astro_balance2.u128(),
+        alice_astro_balance.u128() + 39959
+    );
 }
 
 fn get_cw20_balance(app: &App, token: &Addr, address: &Addr) -> Uint128 {
@@ -464,7 +586,7 @@ fn create_token(app: &mut App, token_code_id: u64, token_name: &str) -> Addr {
         decimals: 6,
         initial_balances: vec![Cw20Coin {
             address: "alice".to_string(),
-            amount: Uint128::from(10_000_000_000u128),
+            amount: Uint128::from(11_000_000_000_000u128),
         }],
         mint: Some(MinterResponse {
             minter: token_name.to_string(),
@@ -473,8 +595,13 @@ fn create_token(app: &mut App, token_code_id: u64, token_name: &str) -> Addr {
         marketing: None,
     };
 
-    app.instantiate_contract(token_code_id, owner, &init_token_msg, &[], token_name, None)
-        .unwrap()
+    let result = app
+        .instantiate_contract(token_code_id, owner, &init_token_msg, &[], token_name, None)
+        .unwrap();
+
+    println!("Token {:?} -> {:?}", token_name, result.to_string());
+
+    result
 }
 
 fn add_pair_and_liquidity(app: &mut App, factory_contract: &Addr, asset1: Asset, asset2: Asset) {
@@ -505,11 +632,18 @@ fn add_pair_and_liquidity(app: &mut App, factory_contract: &Addr, asset1: Asset,
     increase_allowance(app, &pair_contract_addr, &asset2);
 
     let msg = astroport::pair::ExecuteMsg::ProvideLiquidity {
-        assets: [asset1.clone(), asset2],
+        assets: [asset1.clone(), asset2.clone()],
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
     };
+
+    println!(
+        "Pair {:?} {:?} -> {:?}",
+        asset1.info.to_string(),
+        asset2.info.to_string(),
+        pair_contract_addr
+    );
 
     app.execute_contract(
         Addr::unchecked("alice"),
