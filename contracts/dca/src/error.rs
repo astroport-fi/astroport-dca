@@ -17,14 +17,8 @@ pub enum ContractError {
     #[error("Event of zero transfer")]
     InvalidZeroAmount {},
 
-    #[error("Provided spread amount exceeds allowed limit")]
-    AllowedSpreadAssertion {},
-
-    #[error("Operation exceeds max spread limit")]
-    MaxSpreadAssertion {},
-
-    #[error("Token has already been used to DCA")]
-    AlreadyDeposited {},
+    #[error("Bot tip token {token} is not whitelisted")]
+    InvalidBotTipToken { token: String },
 
     #[error("DCA amount is not equal to allowance set by token")]
     InvalidTokenDeposit {},
@@ -32,11 +26,17 @@ pub enum ContractError {
     #[error("Invalid hop route through {token} due to token whitelist")]
     InvalidHopRoute { token: String },
 
-    #[error("The user does not have the specified initial_asset to DCA")]
-    NonexistentDca {},
+    #[error("Provided DCA Id is not known")]
+    NonExistentDca {},
+
+    #[error("Provided token {token} does not exist in the tip jars")]
+    NonExistentTipJar { token: String },
 
     #[error("Swap exceeds maximum of {hops} hops")]
     MaxHopsAssertion { hops: u32 },
+
+    #[error("Tip balance not deposited to pay performer")]
+    NoTipBalance {},
 
     #[error("Tip balance is insufficient to pay performer")]
     InsufficientTipBalance {},
@@ -61,4 +61,10 @@ pub enum ContractError {
 
     #[error("Initial asset deposited is not divisible by the DCA amount")]
     IndivisibleDeposit {},
+
+    #[error("Start time must be unset or in the future")]
+    StartTimeInPast {},
+
+    #[error("NativeSwap is not supported")]
+    NativeSwapNotSupported {},
 }

@@ -1,16 +1,17 @@
-use std::str::FromStr;
-
 use crate::error::ContractError;
 use crate::handlers::{
     add_bot_tip, cancel_dca_order, create_dca_order, modify_dca_order, perform_dca_purchase,
-    update_config, update_user_config, withdraw, ModifyDcaOrderParameters,
+    receive, update_config, withdraw,
 };
-use crate::queries::{get_config, get_user_config, get_user_dca_orders};
-use crate::state::{Config, CONFIG};
+use crate::queries::{
+    get_config, get_dca_order, get_dca_orders, get_user_asset_dca_orders, get_user_dca_orders,
+    get_user_tips,
+};
+use crate::state::{Config, State};
 
 use astroport::asset::addr_validate_to_lower;
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
 use astroport_dca::dca::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -42,25 +43,27 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    // get max spread in decimal form
-    let max_spread = Decimal::from_str(&msg.max_spread)?;
-
     // validate that factory_addr and router_addr is an address
     let factory_addr = addr_validate_to_lower(deps.api, &msg.factory_addr)?;
     let router_addr = addr_validate_to_lower(deps.api, &msg.router_addr)?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    let state = State::default();
+
     let config = Config {
         max_hops: msg.max_hops,
-        per_hop_fee: msg.per_hop_fee,
         whitelisted_tokens: msg.whitelisted_tokens,
-        max_spread,
+        max_spread: msg.max_spread,
         factory_addr,
         router_addr,
     };
 
-    CONFIG.save(deps.storage, &config)?;
+    state.config.save(deps.storage, &config)?;
+    state.dca_id.save(deps.storage, &0u64)?;
+    state
+        .whitelisted_tip_tokens
+        .save(deps.storage, &msg.whitelisted_tip_tokens)?;
 
     Ok(Response::new())
 }
@@ -134,28 +137,30 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::Receive(cw20_msg) => receive(deps, env, info, cw20_msg),
+
         ExecuteMsg::UpdateConfig {
             max_hops,
-            per_hop_fee,
             whitelisted_tokens,
+            whitelisted_tip_tokens,
             max_spread,
         } => update_config(
             deps,
             info,
             max_hops,
-            per_hop_fee,
             whitelisted_tokens,
+            whitelisted_tip_tokens,
             max_spread,
         ),
-        ExecuteMsg::UpdateUserConfig {
-            max_hops,
-            max_spread,
-        } => update_user_config(deps, info, max_hops, max_spread),
+
         ExecuteMsg::CreateDcaOrder {
             initial_asset,
             target_asset,
             interval,
             dca_amount,
+            start_purchase,
+            max_hops,
+            max_spread,
         } => create_dca_order(
             deps,
             env,
@@ -164,33 +169,20 @@ pub fn execute(
             target_asset,
             interval,
             dca_amount,
+            start_purchase,
+            max_hops,
+            max_spread,
         ),
-        ExecuteMsg::AddBotTip {} => add_bot_tip(deps, info),
-        ExecuteMsg::Withdraw { tip: amount } => withdraw(deps, info, amount),
-        ExecuteMsg::PerformDcaPurchase { user, hops } => {
-            perform_dca_purchase(deps, env, info, user, hops)
+        ExecuteMsg::AddBotTip { asset } => {
+            asset.assert_sent_native_token_balance(&info)?;
+            add_bot_tip(deps, info.sender, asset)
         }
-        ExecuteMsg::CancelDcaOrder { initial_asset } => cancel_dca_order(deps, info, initial_asset),
-        ExecuteMsg::ModifyDcaOrder {
-            old_initial_asset,
-            new_initial_asset,
-            new_target_asset,
-            new_interval,
-            new_dca_amount,
-            should_reset_purchase_time,
-        } => modify_dca_order(
-            deps,
-            env,
-            info,
-            ModifyDcaOrderParameters {
-                old_initial_asset,
-                new_initial_asset,
-                new_target_asset,
-                new_interval,
-                new_dca_amount,
-                should_reset_purchase_time,
-            },
-        ),
+        ExecuteMsg::Withdraw { assets } => withdraw(deps, info, assets),
+        ExecuteMsg::PerformDcaPurchase { id, hops } => {
+            perform_dca_purchase(deps, env, info, id, hops)
+        }
+        ExecuteMsg::CancelDcaOrder { id } => cancel_dca_order(deps, info, id),
+        ExecuteMsg::ModifyDcaOrder { parameters } => modify_dca_order(deps, env, info, parameters),
     }
 }
 
@@ -216,7 +208,33 @@ pub fn execute(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&get_config(deps)?),
-        QueryMsg::UserConfig { user } => to_binary(&get_user_config(deps, user)?),
-        QueryMsg::UserDcaOrders { user } => to_binary(&get_user_dca_orders(deps, env, user)?),
+
+        QueryMsg::UserDcaOrders {
+            user,
+            start_after,
+            limit,
+        } => to_binary(&get_user_dca_orders(deps, env, user, start_after, limit)?),
+
+        QueryMsg::UserAssetDcaOrders {
+            user,
+            start_after,
+            limit,
+            asset,
+        } => to_binary(&get_user_asset_dca_orders(
+            deps,
+            env,
+            user,
+            asset,
+            start_after,
+            limit,
+        )?),
+
+        QueryMsg::UserTips { user } => to_binary(&get_user_tips(deps, env, user)?),
+
+        QueryMsg::DcaOrder { id } => to_binary(&get_dca_order(deps, env, id)?),
+
+        QueryMsg::DcaOrders { start_after, limit } => {
+            to_binary(&get_dca_orders(deps, env, start_after, limit)?)
+        }
     }
 }
