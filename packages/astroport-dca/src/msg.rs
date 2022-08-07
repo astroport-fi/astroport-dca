@@ -7,7 +7,7 @@ use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::DcaInfo;
+use crate::{ConfigOverride, DcaInfo};
 
 /// Describes the parameters used for creating a contract
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -53,6 +53,7 @@ pub enum ExecuteMsg {
         interval: u64,
         dca_amount: Uint128,
         start_at: Option<u64>,
+        config_override: Option<ConfigOverride>,
     },
     /// Modifies an existing DCA order, allowing the user to change certain parameters
     ModifyDcaOrder {
@@ -60,6 +61,7 @@ pub enum ExecuteMsg {
         initial_amount: Option<Uint128>,
         interval: Option<u64>,
         dca_amount: Option<Uint128>,
+        config_override: Option<ConfigOverride>,
     },
     /// Performs a DCA purchase for a specified user given a hop route
     PerformDcaPurchase {

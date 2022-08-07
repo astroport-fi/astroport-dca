@@ -22,6 +22,7 @@ fn create_order_not_duplicate() -> Result<(), Box<dyn Error>> {
                 interval: 600,
                 dca_amount: Uint128::new(10_000_000),
                 start_at: None,
+                config_override: None,
             },
             &[Coin::new(50_000_000, USDC)],
         )
@@ -49,6 +50,7 @@ fn create_order_dca_divisible() -> Result<(), Box<dyn Error>> {
                 interval: 600,
                 dca_amount: Uint128::new(15_000_000),
                 start_at: None,
+                config_override: None,
             },
             &[Coin::new(50_000_000, USDC)],
         )
@@ -76,6 +78,7 @@ fn create_order_not_too_small() -> Result<(), Box<dyn Error>> {
                 interval: 600,
                 dca_amount: Uint128::new(60_000_000),
                 start_at: None,
+                config_override: None,
             },
             &[Coin::new(50_000_000, USDC)],
         )
@@ -102,6 +105,7 @@ fn create_order() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDC)],
     )?;
@@ -125,6 +129,7 @@ fn create_order() -> Result<(), Box<dyn Error>> {
                 interval,
                 last_purchase,
                 dca_amount,
+                ..
             },
         ..
     } = infos.into_iter().next().unwrap();
@@ -152,6 +157,7 @@ fn create_multiple_orders_same_asset() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDC)],
     )?;
@@ -165,6 +171,7 @@ fn create_multiple_orders_same_asset() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDC)],
     )?;
@@ -208,6 +215,7 @@ fn create_multiple_orders_diff_asset() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDC)],
     )?;
@@ -221,6 +229,7 @@ fn create_multiple_orders_diff_asset() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDT)],
     )?;
@@ -264,6 +273,7 @@ fn create_multiple_orders_multiple_users() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDC)],
     )?;
@@ -277,6 +287,7 @@ fn create_multiple_orders_multiple_users() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDT)],
     )?;
@@ -290,6 +301,7 @@ fn create_multiple_orders_multiple_users() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDT)],
     )?;

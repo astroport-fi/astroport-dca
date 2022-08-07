@@ -189,6 +189,7 @@ pub fn execute(
             interval,
             dca_amount,
             start_at,
+            config_override,
         } => create_dca_order(
             deps,
             env,
@@ -198,6 +199,7 @@ pub fn execute(
             interval,
             dca_amount,
             start_at,
+            config_override,
         ),
         ExecuteMsg::AddTips {} => add_bot_tip(
             deps,
@@ -220,7 +222,17 @@ pub fn execute(
             interval,
             dca_amount,
             initial_amount,
-        } => modify_dca_order(deps, env, info, id, initial_amount, interval, dca_amount),
+            config_override,
+        } => modify_dca_order(
+            deps,
+            env,
+            info,
+            id,
+            initial_amount,
+            interval,
+            dca_amount,
+            config_override,
+        ),
     }
 }
 

@@ -1,17 +1,7 @@
 use astroport_dca::UserConfig;
 use cosmwasm_std::{attr, Decimal, DepsMut, MessageInfo, Response};
 
-use crate::{error::ContractError, state::USER_CONFIG};
-
-fn serde_option<T>(option: Option<T>) -> String
-where
-    T: ToString,
-{
-    match option {
-        Some(v) => v.to_string(),
-        None => "none".to_string(),
-    }
-}
+use crate::{error::ContractError, helpers::ots, state::USER_CONFIG};
 
 /// ## Description
 /// Updates a users configuration with the specified parameters.
@@ -48,8 +38,8 @@ pub fn update_user_config(
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "update_user_config"),
-        attr("max_hops", serde_option(max_hops)),
-        attr("max_spread", serde_option(max_spread)),
+        attr("max_hops", ots(&max_hops)),
+        attr("max_spread", ots(&max_spread)),
     ]))
 }
 

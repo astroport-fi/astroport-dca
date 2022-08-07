@@ -21,3 +21,10 @@ pub fn asset_transfer(info: &AssetInfo, amount: Uint128, to: &Addr) -> StdResult
         }),
     })
 }
+
+pub fn ots<T: ToString>(v: &Option<T>) -> String {
+    match v {
+        Some(val) => val.to_string(),
+        None => "None".to_string(),
+    }
+}

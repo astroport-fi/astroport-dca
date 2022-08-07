@@ -22,6 +22,7 @@ fn purchase_not_too_early() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDC)],
     )?;
@@ -62,6 +63,7 @@ fn purchase_hops_not_empty() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDC)],
     )?;
@@ -99,6 +101,7 @@ fn purchase_not_exceed_max_hops() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDC)],
     )?;
@@ -153,6 +156,7 @@ fn purchase_correct_target_info() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDC)],
     )?;
@@ -193,6 +197,7 @@ fn purchase_correct_initial_info() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDC)],
     )?;
@@ -259,6 +264,7 @@ fn purchase_whitelisted_hop_route() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(10_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(50_000_000, USDC)],
     )?;
@@ -305,6 +311,7 @@ fn purchase_insuf_tips_bal() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(1_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(1_000_000, USDC)],
     )?;
@@ -354,6 +361,7 @@ fn purchase_insuf_bal() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(1_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(1_000_000, USDC)],
     )?;
@@ -418,6 +426,7 @@ fn purchase_works() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(1_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(1_000_000, USDC)],
     )?;
@@ -489,6 +498,7 @@ fn purchase_multiple_tips_first_insuf_works() -> Result<(), Box<dyn Error>> {
             interval: 600,
             dca_amount: Uint128::new(1_000_000),
             start_at: None,
+            config_override: None,
         },
         &[Coin::new(1_000_000, USDC)],
     )?;

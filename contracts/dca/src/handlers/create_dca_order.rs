@@ -1,5 +1,5 @@
 use astroport::asset::{Asset, AssetInfo};
-use astroport_dca::DcaInfo;
+use astroport_dca::{ConfigOverride, DcaInfo};
 use cosmwasm_std::{attr, DepsMut, Empty, Env, MessageInfo, Response, StdError, Uint128};
 
 use crate::{
@@ -42,6 +42,7 @@ pub fn create_dca_order(
     interval: u64,
     dca_amount: Uint128,
     start_at: Option<u64>,
+    config_override: Option<ConfigOverride>,
 ) -> Result<Response, ContractError> {
     let id = DCA_ID.load(deps.storage)?;
 
@@ -95,6 +96,7 @@ pub fn create_dca_order(
             _ => now,
         },
         dca_amount,
+        config_override: config_override.unwrap_or_default(),
     };
 
     DCA_ID.save(deps.storage, &(id + 1))?;
@@ -109,5 +111,6 @@ pub fn create_dca_order(
         attr("interval", interval.to_string()),
         attr("dca_amount", dca_amount),
         attr("start_at", dca_info.last_purchase.to_string()),
+        attr("config_override", dca_info.config_override.to_string()),
     ]))
 }

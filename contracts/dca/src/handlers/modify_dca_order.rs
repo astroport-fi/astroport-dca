@@ -1,7 +1,10 @@
 use astroport::asset::AssetInfo;
+use astroport_dca::ConfigOverride;
 use cosmwasm_std::{attr, DepsMut, Env, MessageInfo, Response, StdError, Uint128};
 
-use crate::{error::ContractError, get_token_allowance::get_token_allowance, state::DCA};
+use crate::{
+    error::ContractError, get_token_allowance::get_token_allowance, helpers::ots, state::DCA,
+};
 
 /// ## Description
 /// Modifies an existing DCA order for a user such that the new parameters will apply to the
@@ -24,6 +27,7 @@ use crate::{error::ContractError, get_token_allowance::get_token_allowance, stat
 ///
 /// * `order_details` - The [`ModifyDcaOrderParameters`] details about the old and new DCA order
 /// parameters.
+#[allow(clippy::too_many_arguments)]
 pub fn modify_dca_order(
     deps: DepsMut,
     env: Env,
@@ -32,8 +36,8 @@ pub fn modify_dca_order(
     initial_amount: Option<Uint128>,
     interval: Option<u64>,
     dca_amount: Option<Uint128>,
+    config_override: Option<ConfigOverride>,
 ) -> Result<Response, ContractError> {
-    let mut attrs = vec![attr("action", "modify_dca_order")];
     let mut order = DCA.load(deps.storage, id)?;
 
     (order.owner == info.sender)
@@ -76,13 +80,10 @@ pub fn modify_dca_order(
         {
             return Err(ContractError::IndivisibleDeposit {});
         }
-
-        attrs.push(attr("new_initial_asset_amount", initial_amount));
     }
 
     if let Some(interval) = interval {
         order.interval = interval;
-        attrs.push(attr("new_interval", interval.to_string()));
     }
 
     if let Some(dca_amount) = dca_amount {
@@ -102,10 +103,20 @@ pub fn modify_dca_order(
         }
 
         order.dca_amount = dca_amount;
-        attrs.push(attr("new_dca_amount", dca_amount));
+    }
+
+    if let Some(config) = config_override {
+        order.config_override = config;
     }
 
     DCA.save(deps.storage, id, &order)?;
 
-    Ok(Response::new().add_attributes(attrs))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "modify_dca_order"),
+        attr("id", id.to_string()),
+        attr("new_initial_asset_amount", ots(&initial_amount)),
+        attr("new_interval", ots(&interval)),
+        attr("new_dca_amount", ots(&dca_amount)),
+        attr("new_config_override", ots(&config_override)),
+    ]))
 }
