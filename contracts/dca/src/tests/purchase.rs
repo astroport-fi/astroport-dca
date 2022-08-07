@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use astroport::router::SwapOperation;
-use astroport_dca::{DcaInfo, ExecuteMsg, QueryMsg, UserConfig, UserDcaInfo};
+use astroport_dca::{ConfigOverride, DcaInfo, ExecuteMsg, QueryMsg, UserConfig, UserDcaInfo};
 use cosmwasm_std::{Addr, Coin, Uint128};
 use cw_multi_test::Executor;
 
@@ -530,6 +530,65 @@ fn purchase_multiple_tips_first_insuf_works() -> Result<(), Box<dyn Error>> {
     assert_eq!(
         tips_balance,
         vec![native_asset(USDC, 500_000), native_asset(USDT, 1_000_000)]
+    );
+
+    Ok(())
+}
+
+#[test]
+fn purchase_respect_config_override() -> Result<(), Box<dyn Error>> {
+    let (mut app, dca) = instantiate();
+
+    app.execute_contract(
+        Addr::unchecked(USER_ONE),
+        dca.clone(),
+        &ExecuteMsg::AddTips {},
+        &[Coin::new(500_000, USDC), Coin::new(2_000_000, USDT)],
+    )?;
+
+    app.execute_contract(
+        Addr::unchecked(USER_ONE),
+        dca.clone(),
+        &ExecuteMsg::CreateDcaOrder {
+            initial_asset: native_asset(USDC, 1_000_000),
+            target_asset: native_info(LUNA),
+            interval: 600,
+            dca_amount: Uint128::new(1_000_000),
+            start_at: None,
+            config_override: Some(ConfigOverride {
+                max_hops: Some(1),
+                max_spread: None,
+            }),
+        },
+        &[Coin::new(1_000_000, USDC)],
+    )?;
+
+    proceed(&mut app, 100);
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked(USER_TWO),
+            dca,
+            &ExecuteMsg::PerformDcaPurchase {
+                id: 0,
+                hops: vec![
+                    SwapOperation::AstroSwap {
+                        offer_asset_info: native_info(USDC),
+                        ask_asset_info: native_info(USDT),
+                    },
+                    SwapOperation::AstroSwap {
+                        offer_asset_info: native_info(USDT),
+                        ask_asset_info: native_info(LUNA),
+                    },
+                ],
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>()?,
+        ContractError::MaxHopsAssertion { hops: 1 }
     );
 
     Ok(())

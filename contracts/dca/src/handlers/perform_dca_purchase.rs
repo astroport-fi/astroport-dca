@@ -58,7 +58,7 @@ pub fn perform_dca_purchase(
         .unwrap_or_else(|| user_config.max_hops.unwrap_or(contract_config.max_hops));
     let hops_len = hops.len() as u32;
     if hops_len > max_hops {
-        return Err(ContractError::MaxHopsAssertion { hops: hops_len });
+        return Err(ContractError::MaxHopsAssertion { hops: max_hops });
     }
 
     // retrieve max_spread from user config, or default to contract set max_spread
