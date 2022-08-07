@@ -42,7 +42,7 @@ pub fn new_cw20(app: &mut App, owner: &str) -> Addr {
             decimals: 6,
             initial_balances: vec![Cw20Coin {
                 address: owner.to_string(),
-                amount: Uint128::new(1_000_000_000),
+                amount: Uint128::new(2_000_000_000),
             }],
             mint: None,
             marketing: None,
@@ -60,12 +60,27 @@ pub fn native_info(denom: impl Into<String>) -> AssetInfo {
     }
 }
 
+pub fn token_info(addr: impl Into<String>) -> AssetInfo {
+    AssetInfo::Token {
+        contract_addr: Addr::unchecked(addr.into()),
+    }
+}
+
 pub fn native_asset(denom: impl Into<String>, amount: u128) -> Asset {
     Asset {
         info: AssetInfo::NativeToken {
             denom: denom.into(),
         },
         amount: Uint128::new(amount),
+    }
+}
+
+pub fn token_asset(addr: impl Into<String>, amount: u128) -> Asset {
+    Asset {
+        info: AssetInfo::Token {
+            contract_addr: Addr::unchecked(addr.into()),
+        },
+        amount: amount.into(),
     }
 }
 
@@ -91,7 +106,7 @@ pub fn instantiate() -> (App, Addr) {
                 vec![
                     Coin::new(1_000_000_000, LUNA),
                     Coin::new(1_000_000_000, USDC),
-                    Coin::new(1_000_000_000, USDT),
+                    Coin::new(2_000_000_000, USDT),
                     Coin::new(1_000_000_000, OSMO),
                 ],
             )

@@ -111,7 +111,7 @@ fn withdraw_tips_works() -> Result<(), Box<dyn Error>> {
         .map(|e| e.amount.u128())
         .collect::<Vec<_>>();
 
-    assert_eq!(bal_before, vec![999_999_000, 999_999_000]);
+    assert_eq!(bal_before, vec![999_999_000, 1_999_999_000]);
 
     app.execute_contract(
         Addr::unchecked(USER_ONE),
@@ -130,7 +130,7 @@ fn withdraw_tips_works() -> Result<(), Box<dyn Error>> {
         .map(|e| e.amount.u128())
         .collect::<Vec<_>>();
 
-    assert_eq!(bal_after, vec![1_000_000_000, 999_999_500]);
+    assert_eq!(bal_after, vec![1_000_000_000, 1_999_999_500]);
 
     let config: UserConfig = app.wrap().query_wasm_smart(
         &dca,
