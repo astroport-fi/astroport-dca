@@ -56,9 +56,9 @@ pub fn update_config(
         }
 
         if let Some(new_whitelisted_tokens) = whitelisted_tokens {
-            for whitelisted_token in &new_whitelisted_tokens {
-                whitelisted_token.check(deps.api)?;
-            }
+            new_whitelisted_tokens
+                .iter()
+                .try_for_each(|e| e.check(deps.api))?;
 
             config.whitelisted_tokens = new_whitelisted_tokens;
         }
@@ -71,12 +71,17 @@ pub fn update_config(
     })?;
 
     if let Some(new_tips) = tips {
-        for tip in &new_tips {
-            (tip.amount > Uint128::zero())
-                .then(|| ())
-                .ok_or(ContractError::InvalidTipAmount {})?;
-            tip.info.check(deps.api)?;
-        }
+        new_tips
+            .iter()
+            .try_for_each(|tip| -> Result<_, ContractError> {
+                (tip.amount > Uint128::zero())
+                    .then(|| ())
+                    .ok_or(ContractError::InvalidTipAmount {})?;
+
+                tip.info.check(deps.api)?;
+
+                Ok(())
+            })?;
 
         TIPS.save(deps.storage, &new_tips)?;
     }

@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
+use astroport::asset::{Asset, AssetInfo};
 use astroport_dca::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
@@ -48,21 +48,26 @@ pub fn instantiate(
     let max_spread = Decimal::from_str(&msg.max_spread)?;
 
     // validate that factory_addr and router_addr is an address
-    let factory_addr = addr_validate_to_lower(deps.api, &msg.factory_addr)?;
-    let router_addr = addr_validate_to_lower(deps.api, &msg.router_addr)?;
+    let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
+    let router_addr = deps.api.addr_validate(&msg.router_addr)?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    for whitelisted_token in &msg.whitelisted_tokens {
-        whitelisted_token.check(deps.api)?;
-    }
+    msg.whitelisted_tokens
+        .iter()
+        .try_for_each(|e| e.check(deps.api))?;
 
-    for tip in &msg.tips {
-        (tip.amount > Uint128::zero())
-            .then(|| ())
-            .ok_or(ContractError::InvalidTipAmount {})?;
-        tip.info.check(deps.api)?;
-    }
+    msg.tips
+        .iter()
+        .try_for_each(|tip| -> Result<_, ContractError> {
+            (tip.amount > Uint128::zero())
+                .then(|| ())
+                .ok_or(ContractError::InvalidTipAmount {})?;
+
+            tip.info.check(deps.api)?;
+
+            Ok(())
+        })?;
 
     let config = Config {
         max_hops: msg.max_hops,
