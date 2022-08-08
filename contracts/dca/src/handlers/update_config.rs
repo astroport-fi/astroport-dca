@@ -1,7 +1,13 @@
-use astroport::{asset::AssetInfo, querier::query_factory_config};
+use astroport::{
+    asset::{Asset, AssetInfo},
+    querier::query_factory_config,
+};
 use cosmwasm_std::{attr, Decimal, DepsMut, MessageInfo, Response, StdError, Uint128};
 
-use crate::{error::ContractError, state::CONFIG};
+use crate::{
+    error::ContractError,
+    state::{CONFIG, TIPS},
+};
 
 /// ## Description
 /// Updates the contract configuration with the specified optional parameters.
@@ -32,9 +38,9 @@ pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     max_hops: Option<u32>,
-    per_hop_fee: Option<Uint128>,
     whitelisted_tokens: Option<Vec<AssetInfo>>,
     max_spread: Option<Decimal>,
+    tips: Option<Vec<Asset>>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, config.factory_addr)?;
@@ -49,11 +55,11 @@ pub fn update_config(
             config.max_hops = new_max_hops;
         }
 
-        if let Some(new_per_hop_fee) = per_hop_fee {
-            config.per_hop_fee = new_per_hop_fee;
-        }
-
         if let Some(new_whitelisted_tokens) = whitelisted_tokens {
+            new_whitelisted_tokens
+                .iter()
+                .try_for_each(|e| e.check(deps.api))?;
+
             config.whitelisted_tokens = new_whitelisted_tokens;
         }
 
@@ -63,6 +69,22 @@ pub fn update_config(
 
         Ok(config)
     })?;
+
+    if let Some(new_tips) = tips {
+        new_tips
+            .iter()
+            .try_for_each(|tip| -> Result<_, ContractError> {
+                (tip.amount > Uint128::zero())
+                    .then(|| ())
+                    .ok_or(ContractError::InvalidTipAmount {})?;
+
+                tip.info.check(deps.api)?;
+
+                Ok(())
+            })?;
+
+        TIPS.save(deps.storage, &new_tips)?;
+    }
 
     Ok(Response::default().add_attributes(vec![attr("action", "update_config")]))
 }

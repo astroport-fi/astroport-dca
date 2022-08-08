@@ -1,10 +1,10 @@
-use astroport::asset::AssetInfo;
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use astroport::asset::{Asset, AssetInfo};
+use cosmwasm_std::{Addr, Decimal, Empty};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use astroport_dca::dca::DcaInfo;
+use astroport_dca::{DcaInfo, UserConfig};
 
 /// Stores the main dca module parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -13,8 +13,6 @@ pub struct Config {
     pub max_hops: u32,
     /// The maximum amount of spread when performing a swap from `initial_asset` to `target_asset` when DCAing if the user does not specify
     pub max_spread: Decimal,
-    /// The fee a user must pay per hop performed in a DCA purchase
-    pub per_hop_fee: Uint128,
     /// The whitelisted tokens that can be used in a DCA purchase route
     pub whitelisted_tokens: Vec<AssetInfo>,
     /// The address of the Astroport factory contract
@@ -29,30 +27,13 @@ impl Config {
     }
 }
 
-/// Stores the users custom configuration
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UserConfig {
-    /// An override for the maximum amount of hops to perform from `initial_asset` to `target_asset` when DCAing
-    pub max_hops: Option<u32>,
-    /// An override for the maximum amount of spread when performing a swap from `initial_asset` to `target_asset` when DCAing
-    pub max_spread: Option<Decimal>,
-    /// The amount of uusd the user has deposited for their tips when performing DCA purchases
-    pub tip_balance: Uint128,
-}
-
-impl Default for UserConfig {
-    fn default() -> Self {
-        UserConfig {
-            max_hops: None,
-            max_spread: None,
-            tip_balance: Uint128::zero(),
-        }
-    }
-}
-
 /// The contract configuration
 pub const CONFIG: Item<Config> = Item::new("config");
+pub const TIPS: Item<Vec<Asset>> = Item::new("tips");
+
 /// The configuration set by each user
 pub const USER_CONFIG: Map<&Addr, UserConfig> = Map::new("user_config");
-/// The DCA orders for a user
-pub const USER_DCA: Map<&Addr, Vec<DcaInfo>> = Map::new("user_dca");
+
+pub const DCA_ID: Item<u64> = Item::new("dca_id");
+pub const DCA: Map<u64, DcaInfo> = Map::new("dca");
+pub const DCA_OWNER: Map<(&Addr, u64), Empty> = Map::new("dca_o");

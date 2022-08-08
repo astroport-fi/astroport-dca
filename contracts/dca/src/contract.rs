@@ -1,20 +1,22 @@
 use std::str::FromStr;
 
-use crate::error::ContractError;
-use crate::handlers::{
-    add_bot_tip, cancel_dca_order, create_dca_order, modify_dca_order, perform_dca_purchase,
-    update_config, update_user_config, withdraw, ModifyDcaOrderParameters,
-};
-use crate::queries::{get_config, get_user_config, get_user_dca_orders};
-use crate::state::{Config, CONFIG};
-
-use astroport::asset::addr_validate_to_lower;
+use astroport::asset::{Asset, AssetInfo};
+use astroport_dca::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    entry_point, from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdResult, Uint128,
 };
-
-use astroport_dca::dca::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cw2::set_contract_version;
+
+use crate::{
+    error::ContractError,
+    handlers::{
+        add_bot_tip, cancel_dca_order, create_dca_order, modify_dca_order, perform_dca_purchase,
+        update_config, update_user_config, withdraw,
+    },
+    queries::{get_all_dca_orders, get_config, get_tips, get_user_config, get_user_dca_orders},
+    state::{Config, CONFIG, DCA_ID, TIPS},
+};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-dca";
@@ -46,14 +48,29 @@ pub fn instantiate(
     let max_spread = Decimal::from_str(&msg.max_spread)?;
 
     // validate that factory_addr and router_addr is an address
-    let factory_addr = addr_validate_to_lower(deps.api, &msg.factory_addr)?;
-    let router_addr = addr_validate_to_lower(deps.api, &msg.router_addr)?;
+    let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
+    let router_addr = deps.api.addr_validate(&msg.router_addr)?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    msg.whitelisted_tokens
+        .iter()
+        .try_for_each(|e| e.check(deps.api))?;
+
+    msg.tips
+        .iter()
+        .try_for_each(|tip| -> Result<_, ContractError> {
+            (tip.amount > Uint128::zero())
+                .then(|| ())
+                .ok_or(ContractError::InvalidTipAmount {})?;
+
+            tip.info.check(deps.api)?;
+
+            Ok(())
+        })?;
+
     let config = Config {
         max_hops: msg.max_hops,
-        per_hop_fee: msg.per_hop_fee,
         whitelisted_tokens: msg.whitelisted_tokens,
         max_spread,
         factory_addr,
@@ -61,6 +78,8 @@ pub fn instantiate(
     };
 
     CONFIG.save(deps.storage, &config)?;
+    DCA_ID.save(deps.storage, &0)?;
+    TIPS.save(deps.storage, &msg.tips)?;
 
     Ok(Response::new())
 }
@@ -74,7 +93,9 @@ pub fn instantiate(
 ///
 /// * `_msg` - The [`MigrateMsg`] to migrate the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     Ok(Response::default())
 }
 
@@ -134,19 +155,30 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::Receive(receive_msg) => {
+            let sender = deps.api.addr_validate(&receive_msg.sender)?;
+            match from_binary(&receive_msg.msg)? {
+                Cw20HookMsg::AddBotTips {} => add_bot_tip(
+                    deps,
+                    MessageInfo {
+                        sender,
+                        funds: vec![],
+                    },
+                    vec![Asset {
+                        info: AssetInfo::Token {
+                            contract_addr: info.sender,
+                        },
+                        amount: receive_msg.amount,
+                    }],
+                ),
+            }
+        }
         ExecuteMsg::UpdateConfig {
             max_hops,
-            per_hop_fee,
             whitelisted_tokens,
             max_spread,
-        } => update_config(
-            deps,
-            info,
-            max_hops,
-            per_hop_fee,
-            whitelisted_tokens,
-            max_spread,
-        ),
+            tips,
+        } => update_config(deps, info, max_hops, whitelisted_tokens, max_spread, tips),
         ExecuteMsg::UpdateUserConfig {
             max_hops,
             max_spread,
@@ -156,6 +188,8 @@ pub fn execute(
             target_asset,
             interval,
             dca_amount,
+            start_at,
+            config_override,
         } => create_dca_order(
             deps,
             env,
@@ -164,32 +198,40 @@ pub fn execute(
             target_asset,
             interval,
             dca_amount,
+            start_at,
+            config_override,
         ),
-        ExecuteMsg::AddBotTip {} => add_bot_tip(deps, info),
-        ExecuteMsg::Withdraw { tip: amount } => withdraw(deps, info, amount),
-        ExecuteMsg::PerformDcaPurchase { user, hops } => {
-            perform_dca_purchase(deps, env, info, user, hops)
+        ExecuteMsg::AddTips {} => add_bot_tip(
+            deps,
+            info.clone(),
+            info.funds
+                .into_iter()
+                .map(|e| Asset {
+                    info: AssetInfo::NativeToken { denom: e.denom },
+                    amount: e.amount,
+                })
+                .collect::<Vec<_>>(),
+        ),
+        ExecuteMsg::WithdrawTips { tips } => withdraw(deps, info, tips),
+        ExecuteMsg::PerformDcaPurchase { id, hops } => {
+            perform_dca_purchase(deps, env, info, id, hops)
         }
-        ExecuteMsg::CancelDcaOrder { initial_asset } => cancel_dca_order(deps, info, initial_asset),
+        ExecuteMsg::CancelDcaOrder { id } => cancel_dca_order(deps, info, id),
         ExecuteMsg::ModifyDcaOrder {
-            old_initial_asset,
-            new_initial_asset,
-            new_target_asset,
-            new_interval,
-            new_dca_amount,
-            should_reset_purchase_time,
+            id,
+            interval,
+            dca_amount,
+            initial_amount,
+            config_override,
         } => modify_dca_order(
             deps,
             env,
             info,
-            ModifyDcaOrderParameters {
-                old_initial_asset,
-                new_initial_asset,
-                new_target_asset,
-                new_interval,
-                new_dca_amount,
-                should_reset_purchase_time,
-            },
+            id,
+            initial_amount,
+            interval,
+            dca_amount,
+            config_override,
         ),
     }
 }
@@ -216,7 +258,13 @@ pub fn execute(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&get_config(deps)?),
+        QueryMsg::Tips {} => to_binary(&get_tips(deps)?),
         QueryMsg::UserConfig { user } => to_binary(&get_user_config(deps, user)?),
         QueryMsg::UserDcaOrders { user } => to_binary(&get_user_dca_orders(deps, env, user)?),
+        QueryMsg::AllDcaOrders {
+            start_after,
+            limit,
+            is_ascending,
+        } => to_binary(&get_all_dca_orders(deps, start_after, limit, is_ascending)?),
     }
 }

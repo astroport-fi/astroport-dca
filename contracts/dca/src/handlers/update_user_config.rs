@@ -1,19 +1,7 @@
+use astroport_dca::UserConfig;
 use cosmwasm_std::{attr, Decimal, DepsMut, MessageInfo, Response};
 
-use crate::{
-    error::ContractError,
-    state::{UserConfig, USER_CONFIG},
-};
-
-fn serde_option<T>(option: Option<T>) -> String
-where
-    T: ToString,
-{
-    match option {
-        Some(v) => v.to_string(),
-        None => "none".to_string(),
-    }
-}
+use crate::{error::ContractError, helpers::ots, state::USER_CONFIG};
 
 /// ## Description
 /// Updates a users configuration with the specified parameters.
@@ -50,8 +38,8 @@ pub fn update_user_config(
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "update_user_config"),
-        attr("max_hops", serde_option(max_hops)),
-        attr("max_spread", serde_option(max_spread)),
+        attr("max_hops", ots(&max_hops)),
+        attr("max_spread", ots(&max_spread)),
     ]))
 }
 
@@ -59,7 +47,8 @@ pub fn update_user_config(
 mod tests {
     use std::str::FromStr;
 
-    use astroport_dca::dca::ExecuteMsg;
+    use astroport::asset::{Asset, AssetInfo};
+    use astroport_dca::{ExecuteMsg, UserConfig};
     use cosmwasm_std::{
         attr, coin,
         testing::{mock_dependencies, mock_env, mock_info},
@@ -68,12 +57,12 @@ mod tests {
 
     use crate::{
         contract::execute,
-        state::{UserConfig, USER_CONFIG},
+        state::{TIPS, USER_CONFIG},
     };
 
     #[test]
     fn does_update_user_config() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::UpdateUserConfig {
@@ -99,14 +88,25 @@ mod tests {
             UserConfig {
                 max_hops: Some(6),
                 max_spread: Some(Decimal::from_str("0.025").unwrap()),
-                tip_balance: Uint128::zero()
+                tips_balance: vec![],
             }
         )
     }
 
     #[test]
     fn does_not_change_tip_balance() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
+
+        TIPS.save(
+            &mut deps.storage,
+            &vec![Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: Uint128::new(100),
+            }],
+        )
+        .unwrap();
 
         let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::UpdateUserConfig {
@@ -116,19 +116,27 @@ mod tests {
 
         // add tip
         let send_info = mock_info("creator", &[coin(10_000, "uusd")]);
-        let send_tip_msg = ExecuteMsg::AddBotTip {};
+        let send_tip_msg = ExecuteMsg::AddTips {};
         execute(deps.as_mut(), mock_env(), send_info.clone(), send_tip_msg).unwrap();
 
         // does not modify the tip balance
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         let config = USER_CONFIG.load(&deps.storage, &send_info.sender).unwrap();
-        assert_eq!(config.tip_balance, send_info.funds[0].amount);
+        assert_eq!(
+            config.tips_balance,
+            vec![Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: Uint128::new(10_000),
+            }]
+        );
     }
 
     #[test]
     fn does_reset_config() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[]);
         let update_msg = ExecuteMsg::UpdateUserConfig {
@@ -151,7 +159,7 @@ mod tests {
             UserConfig {
                 max_hops: Some(6),
                 max_spread: None,
-                tip_balance: Uint128::zero()
+                tips_balance: vec![],
             }
         )
     }

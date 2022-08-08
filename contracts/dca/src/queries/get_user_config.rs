@@ -1,7 +1,8 @@
 use astroport::asset::addr_validate_to_lower;
+use astroport_dca::UserConfig;
 use cosmwasm_std::{Deps, StdResult};
 
-use crate::state::{UserConfig, USER_CONFIG};
+use crate::state::USER_CONFIG;
 
 /// ## Description
 /// Returns the configuration set for a user to override the default contract configuration.
@@ -15,5 +16,7 @@ use crate::state::{UserConfig, USER_CONFIG};
 pub fn get_user_config(deps: Deps, user: String) -> StdResult<UserConfig> {
     let user_address = addr_validate_to_lower(deps.api, &user)?;
 
-    USER_CONFIG.load(deps.storage, &user_address)
+    Ok(USER_CONFIG
+        .may_load(deps.storage, &user_address)?
+        .unwrap_or_default())
 }

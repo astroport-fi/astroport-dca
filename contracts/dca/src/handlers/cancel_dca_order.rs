@@ -1,8 +1,10 @@
 use astroport::asset::AssetInfo;
-use astroport_dca::dca::DcaInfo;
-use cosmwasm_std::{attr, BankMsg, Coin, DepsMut, MessageInfo, Response};
+use cosmwasm_std::{attr, BankMsg, Coin, DepsMut, MessageInfo, Response, Uint128};
 
-use crate::{error::ContractError, state::USER_DCA};
+use crate::{
+    error::ContractError,
+    state::{DCA, DCA_OWNER},
+};
 
 /// ## Description
 /// Cancels a users DCA purchase so that it will no longer be fulfilled.
@@ -20,40 +22,33 @@ use crate::{error::ContractError, state::USER_DCA};
 pub fn cancel_dca_order(
     deps: DepsMut,
     info: MessageInfo,
-    initial_asset: AssetInfo,
+    id: u64,
 ) -> Result<Response, ContractError> {
     let mut funds = Vec::new();
+    let order = DCA.load(deps.storage, id)?;
+
+    (order.owner == info.sender)
+        .then(|| ())
+        .ok_or(ContractError::Unauthorized {})?;
 
     // remove order from user dca's, and add any native token funds for `initial_asset` into the `funds`.
-    USER_DCA.update(
-        deps.storage,
-        &info.sender,
-        |orders| -> Result<Vec<DcaInfo>, ContractError> {
-            let mut orders = orders.ok_or(ContractError::NonexistentDca {})?;
+    if let AssetInfo::NativeToken { denom } = order.initial_asset.info {
+        if order.initial_asset.amount > Uint128::zero() {
+            funds.push(BankMsg::Send {
+                to_address: order.owner.to_string(),
+                amount: vec![Coin {
+                    denom,
+                    amount: order.initial_asset.amount,
+                }],
+            })
+        }
+    }
 
-            let order_position = orders
-                .iter()
-                .position(|order| order.initial_asset.info == initial_asset)
-                .ok_or(ContractError::NonexistentDca {})?;
+    DCA.remove(deps.storage, id);
+    DCA_OWNER.remove(deps.storage, (&order.owner, id));
 
-            let removed_order = &orders[order_position];
-            if let AssetInfo::NativeToken { denom } = &removed_order.initial_asset.info {
-                funds.push(BankMsg::Send {
-                    to_address: info.sender.to_string(),
-                    amount: vec![Coin {
-                        amount: removed_order.initial_asset.amount,
-                        denom: denom.clone(),
-                    }],
-                })
-            }
-
-            orders.remove(order_position);
-
-            Ok(orders)
-        },
-    )?;
-
-    Ok(Response::new()
-        .add_messages(funds)
-        .add_attributes(vec![attr("action", "cancel_dca_order")]))
+    Ok(Response::new().add_messages(funds).add_attributes(vec![
+        attr("action", "cancel_dca_order"),
+        attr("id", id.to_string()),
+    ]))
 }
